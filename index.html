@@ -62,7 +62,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 
 // use jquery to load GeoJSON data
 
-
+    
     $.getJSON("wasteContainer.json", function(WC) {
       L.geoJson(WC, {
         pointToLayer: function(feature, latlng) {
@@ -77,7 +77,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         }
       }).addTo(map);
     });
-    $.getJSON("RamallahZones.json", function(RZ) {
+   $.getJSON("RamallahZones.json", function(RZ) {
       L.geoJson(RZ, {
         style: function(feature) {
           return {
@@ -90,7 +90,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         },
         onEachFeature: function(feature, layer) {
           layer.on('click', function(e) {
-       alert("Zone: " + feature.properties.TYPE_OF_WA + "\nMAIL_CODE: " + feature.properties.MAIL_CODE);
+            alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE);
           });
         }
       }).addTo(map);
@@ -113,6 +113,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 </body>
 
 </html>
+
 
 
 
