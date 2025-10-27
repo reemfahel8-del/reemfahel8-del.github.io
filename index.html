@@ -73,6 +73,11 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             weight: 1.0,
             opacity: 0.7
           };
+               },
+        onEachFeature: function(feature, layer) {
+          layer.on('click', function(e) {
+            alert("Zone Name: " + feature.properties.TYPE_OF_WA);
+          });
         }
       }).addTo(map);
     });
@@ -86,3 +91,4 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 </body>
 
 </html>
+
