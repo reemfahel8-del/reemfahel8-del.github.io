@@ -61,7 +61,9 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 
 
 // use jquery to load GeoJSON data
-      $.getJSON("RamallahZones.json", function(RZ) {
+
+
+   $.getJSON("RamallahZones.json", function(RZ) {
       L.geoJson(RZ, {
         style: function(feature) {
           return {
@@ -71,11 +73,10 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             weight: 1.0,
             opacity: 0.7
           };
-               },
+        },
         onEachFeature: function(feature, layer) {
           layer.on('click', function(e) {
-            alert("Zone: " + feature.properties.TYPE_OF_WA + "\nMAIL_CODE: " + feature.properties.MAIL_CODE);
-
+            alert("Zone Name: " + feature.properties.NAME);
           });
         }
       }).addTo(map);
@@ -95,7 +96,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         }
       }).addTo(map);
     });
- // Add layers to map with control options
+    // Add layers to map with control options
     const baseLayers = {};
     const overlays = {
       "Zones": zonesLayer,
@@ -108,29 +109,11 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     // Add both layers to the map by default
     zonesLayer.addTo(map);
     wasteContainersLayer.addTo(map);
-          $.getJSON("RamallahZones.json", function(RZ) {
-      L.geoJson(RZ, {
-        style: function(feature) {
-          return {
-            fillColor: "yellow",
-            fillOpacity: 0.3,
-            color: "yellow",
-            weight: 1.0,
-            opacity: 0.7
-          };
-               },
-        onEachFeature: function(feature, layer) {
-          layer.on('click', function(e) {
-            alert("Zone: " + feature.properties.TYPE_OF_WA + "\nMAIL_CODE: " + feature.properties.MAIL_CODE);
-
-          });
-        }
-      }).addTo(map);
-    });
   </script>
 </body>
 
 </html>
+
 
 
 
