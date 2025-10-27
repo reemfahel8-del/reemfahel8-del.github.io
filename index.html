@@ -102,6 +102,14 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       }).addTo(map);
     });
 
+// STEP 5
+
+    // Add layers to map with control options
+    const baseLayers = {};
+    const overlays = {
+      "Zones": zonesLayer,
+      "Waste Containers": wasteContainersLayer
+    };
 
     // Add layer control to the map
     L.control.layers(baseLayers, overlays).addTo(map);
@@ -113,6 +121,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 </body>
 
 </html>
+
 
 
 
