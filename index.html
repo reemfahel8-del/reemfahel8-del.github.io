@@ -1,4 +1,4 @@
-  <!DOCTYPE html>
+<!DOCTYPE html>
 
 <html lang="en">
 <head>
@@ -85,7 +85,7 @@
 
   <div id="videoPopup">
     <span id="closeVideo">&times;</span>
-    <video id="introVideo" autoplay controls>
+    <video id="introVideo" autoplay muted controls>
       <source src="videos/v_intro.mp4" type="video/mp4">
       Your browser does not support the video tag.
     </video>
@@ -126,7 +126,7 @@
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
     // سهم الشمال أكبر
-    L.control.compass({position: 'topright', autoActive: true, showDigit:true, textErr: "خطأ", size: 80}).addTo(map);
+    L.control.compass({position: 'topright', autoActive: true, showDigit:true, size: 80}).addTo(map);
 
     let parcelLayer;
     let heatPoints = [];
