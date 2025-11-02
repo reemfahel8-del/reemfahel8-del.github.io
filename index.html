@@ -46,7 +46,7 @@
   <!-- Leaflet Search JS -->
   <script src="https://unpkg.com/leaflet-control-search/dist/leaflet-search.min.js"></script>
 
-  <!-- Leaflet 3D JS (Leaflet.Globe or similar) -->
+  <!-- Leaflet 3D Globe JS -->
   <script src="https://unpkg.com/leaflet.globe/dist/Leaflet.Globe.min.js"></script>
 
   <script>
@@ -58,7 +58,7 @@
 
     const map = L.map('map', mapOptions);
 
-    // 3D Globe style
+    // 3D Globe base map
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: 'abcd',
@@ -68,12 +68,14 @@
     // Add scale in meters only
     L.control.scale({ metric: true, imperial: false }).addTo(map);
 
-    // Marker cluster group for waste containers
+    // Marker cluster group
     const wasteCluster = L.markerClusterGroup();
 
+    // Waste Containers layer
+    const wasteJSON = "https://raw.githubusercontent.com/reemfahel8-del/project-name/main/wasteContainer.json"; // ضع رابط Raw الصحيح هنا
     let wasteContainersLayer;
 
-    $.getJSON("wasteContainer.json", function(WC) {
+    $.getJSON(wasteJSON, function(WC) {
       wasteContainersLayer = L.geoJson(WC, {
         pointToLayer: function(feature, latlng) {
           const marker = L.circleMarker(latlng, {
@@ -96,8 +98,10 @@
     });
 
     // Zones layer
+    const zonesJSON = "https://raw.githubusercontent.com/reemfahel8-del/project-name/main/RamallahZones.json"; // رابط Raw للمنطقة
     let zonesLayer;
-    $.getJSON("RamallahZones.json", function(RZ) {
+
+    $.getJSON(zonesJSON, function(RZ) {
       zonesLayer = L.geoJson(RZ, {
         style: function(feature) {
           return {
@@ -115,7 +119,7 @@
         }
       }).addTo(map);
 
-      // Add search control
+      // Search control
       const searchControl = new L.Control.Search({
         layer: zonesLayer,
         propertyName: 'NAME_ENGLI',
@@ -138,3 +142,4 @@
   </script>
 </body>
 </html>
+س
