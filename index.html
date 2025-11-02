@@ -4,21 +4,56 @@
 
 <head>
   <meta charset="utf-8" />
-  <title>Ramallah Waste Containers</title>
+  <title>Smart Ramallah Waste Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     body {
-      margin: 0px;
+      margin: 0;
       height: 100%;
       width: 100%;
+      background: #111;
     }
 
     #map {
       position: absolute;
       width: 100%;
-      top: 0px;
-      bottom: 0;
+      height: 100%;
+    }
+
+    /* شريط المعلومات */
+    #infoBox {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(30, 30, 30, 0.8);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      z-index: 1000;
+      font-family: Arial, sans-serif;
+    }
+
+    /* زر التحليل */
+    .analyze-btn {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: #ffa500;
+      color: #111;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      z-index: 1000;
+      transition: 0.3s;
+    }
+
+    .analyze-btn:hover {
+      background: #ffcc33;
     }
 
     /* إشارة الشمال */
@@ -38,31 +73,33 @@
 
 <body>
   <div id="map"></div>
+  <div id="infoBox">مرر المؤشر على أي منطقة</div>
+  <button class="analyze-btn" id="analyzeBtn">تحليل سريع 🧠</button>
 
   <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 
   <script>
-    // إعدادات الخريطة
-    const mapOptions = {
-      zoomSnap: 0.5,
+    const map = L.map("map", {
       center: [31.9045, 35.2045],
       zoom: 17.5,
-    };
-
-    const map = L.map("map", mapOptions);
+      zoomSnap: 0.5,
+    });
 
     // خريطة الأساس
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      attribution: '&copy; OpenStreetMap & CARTO',
       subdomains: 'abcd',
       maxZoom: 20
     }).addTo(map);
 
+    let wasteContainers = [];
+    let zonesLayer;
+
     // تحميل طبقة الحاويات
     $.getJSON("wasteContainer.json", function (WC) {
-      window.wasteContainersLayer = L.geoJson(WC, {
+      wasteContainers = L.geoJson(WC, {
         pointToLayer: function (feature, latlng) {
           return L.circleMarker(latlng, {
             radius: 5,
@@ -76,9 +113,9 @@
       }).addTo(map);
     });
 
-    // تحميل طبقة المناطق
+    // تحميل المناطق مع الفيديو والرسم البياني
     $.getJSON("RamallahZones.json", function (RZ) {
-      window.zonesLayer = L.geoJson(RZ, {
+      zonesLayer = L.geoJson(RZ, {
         style: function (feature) {
           return {
             fillColor: "yellow",
@@ -89,8 +126,37 @@
           };
         },
         onEachFeature: function (feature, layer) {
-          layer.on('click', function (e) {
-            alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE);
+          // Popup فيه فيديو + رسم بياني
+          layer.bindPopup(`
+            <h4>${feature.properties.NAME_ENGLI}</h4>
+            <video width="230" controls>
+              <source src="videos/ramallah_info.mp4" type="video/mp4">
+            </video>
+            <canvas id="chart-${feature.properties.MAIL_CODE}" width="200" height="150"></canvas>
+          `);
+
+          layer.on('popupopen', function () {
+            const ctx = document.getElementById(`chart-${feature.properties.MAIL_CODE}`).getContext('2d');
+            new Chart(ctx, {
+              type: 'bar',
+              data: {
+                labels: ['Organic', 'Plastic', 'Metal'],
+                datasets: [{
+                  label: 'Tons',
+                  data: [12, 7, 3],
+                  backgroundColor: ['#66bb6a', '#ffa726', '#42a5f5']
+                }]
+              },
+              options: { plugins: { legend: { display: false } } }
+            });
+          });
+
+          // تحديث شريط المعلومات عند تمرير الماوس
+          layer.on('mouseover', function () {
+            document.getElementById('infoBox').innerHTML = `المنطقة: <b>${feature.properties.NAME_ENGLI}</b>`;
+          });
+          layer.on('mouseout', function () {
+            document.getElementById('infoBox').innerHTML = 'مرر المؤشر على أي منطقة';
           });
         }
       }).addTo(map);
@@ -101,24 +167,37 @@
 
     // إشارة الشمال
     L.Control.North = L.Control.extend({
-      onAdd: function (map) {
+      onAdd: function () {
         const img = L.DomUtil.create('div', 'leaflet-control-north');
         return img;
-      },
-      onRemove: function (map) { }
+      }
     });
-
     L.control.north = function (opts) {
       return new L.Control.North(opts);
     }
-
     L.control.north({ position: 'topleft' }).addTo(map);
 
+    // عند التكبير الشديد تظهر صورة واقعية
+    const bounds = [[31.9035, 35.2035], [31.9055, 35.2055]];
+    map.on('zoomend', function () {
+      if (map.getZoom() > 18) {
+        if (!map._imageOverlayAdded) {
+          L.imageOverlay('images/ramallah_close.jpg', bounds).addTo(map);
+          map._imageOverlayAdded = true;
+        }
+      }
+    });
+
+    // زر التحليل السريع
+    document.getElementById('analyzeBtn').addEventListener('click', function () {
+      alert("📊 عدد الحاويات داخل المناطق: \nسيتم حسابها عند توفر البيانات الدقيقة.\n(يمكن ربطها بجدول إحصائي لاحقًا)");
+    });
   </script>
 
 </body>
 
 </html>
+
 
 
 
