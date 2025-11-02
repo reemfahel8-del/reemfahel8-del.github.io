@@ -18,6 +18,13 @@
     #map, #cesiumContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
     #cesiumContainer { display: none; }
 
+    .leaflet-control-north {
+      background-image: url('https://upload.wikimedia.org/wikipedia/commons/6/6b/Compass_Rose_North.svg');
+      background-repeat: no-repeat;
+      background-size: contain;
+      width: 60px; height: 60px;
+    }
+
     .leaflet-control-3d-toggle {
       background: white; border-radius: 8px; padding: 6px 10px;
       cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
@@ -45,10 +52,12 @@
       subdomains: 'abcd', maxZoom: 20
     }).addTo(map);
 
-    // مقياس الرسم بالمتر فقط
     L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(map);
 
-    // البحث باسم المنطقة
+    const northCtrl = L.control({ position: "topright" });
+    northCtrl.onAdd = () => L.DomUtil.create("div", "leaflet-control-north");
+    northCtrl.addTo(map);
+
     L.Control.geocoder({
       defaultMarkGeocode: false,
       placeholder: "ابحث عن منطقة...",
@@ -91,7 +100,7 @@
     let viewer = null;
     let is3D = false;
 
-    const toggle3D = L.control({ position: 'topright' }); // زر على اليمين
+    const toggle3D = L.control({ position: 'topleft' });
     toggle3D.onAdd = function () {
       const div = L.DomUtil.create('div', 'leaflet-control-3d-toggle');
       div.innerHTML = '🪐 تفعيل 3D';
@@ -121,7 +130,7 @@
           viewer.scene.skyAtmosphere.show = true;
           viewer.scene.globe.showGroundAtmosphere = true;
 
-          // إضافة الحاويات في Cesium
+          // ===== إضافة الحاويات في Cesium =====
           $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/reemfahel8-del.github.io/main/wasteContainer.json", function(WC) {
             WC.features.forEach(f => {
               viewer.entities.add({
@@ -133,7 +142,7 @@
             });
           });
 
-          // إضافة المناطق في Cesium
+          // ===== إضافة المناطق في Cesium =====
           $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/reemfahel8-del.github.io/main/RamallahZones.json", function(RZ) {
             RZ.features.forEach(f => {
               const hierarchy = f.geometry.coordinates[0].map(c => Cesium.Cartesian3.fromDegrees(c[0], c[1], 0));
