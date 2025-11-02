@@ -1,109 +1,179 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8" />
-  <title>خريطة الحاويات - عرض ثلاثي الأبعاد</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/dark/main.css" />
-  <script src="https://js.arcgis.com/4.30/"></script>
+  <meta charset="utf-8">
+  <title>Ramallah Waste Containers 3D</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://unpkg.com/maplibre-gl@2.6.1/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
-    html, body, #viewDiv {
-      padding: 0;
-      margin: 0;
-      height: 100%;
-      width: 100%;
-      background-color: #222;
-      color: white;
-    }
-    .upload-container {
-      margin-top: 10px;
-      text-align: center;
-    }
-    .upload-container input[type="file"] {
-      display: block;
-      margin: 0 auto;
-      background: #333;
-      color: white;
-      border-radius: 8px;
+    body, html { margin:0; padding:0; height:100%; width:100%; }
+    #map { width:100%; height:100%; }
+    .map-overlay {
+      position: absolute;
+      background: rgba(255,255,255,0.8);
       padding: 5px;
-      cursor: pointer;
+      border-radius: 5px;
+      z-index: 9999;
     }
-    .uploaded-image {
-      margin-top: 10px;
-      max-width: 100%;
-      border-radius: 10px;
-    }
+    #geocoder-container { top:10px; left:10px; width:250px; }
+    #north-arrow { top:80px; left:10px; }
+    #toggle3D { top:10px; right:10px; cursor:pointer; }
+    .upload-image { max-width: 100%; margin-top: 5px; border-radius:5px; }
   </style>
 </head>
 <body>
-  <div id="viewDiv"></div>
+  <div id="map"></div>
+  <div class="map-overlay" id="geocoder-container">
+    <input type="text" id="searchBox" placeholder="ابحث باسم المنطقة...">
+  </div>
+  <div class="map-overlay" id="north-arrow">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/0/09/Compass_rose_simple.svg" width="50">
+  </div>
+  <div class="map-overlay" id="toggle3D">🛰️ تفعيل التجوال الثلاثي</div>
+
+  <script src="https://unpkg.com/maplibre-gl@2.6.1/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/@mapbox/mapbox-gl-geocoder@4.7.0/dist/mapbox-gl-geocoder.min.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
   <script>
-    require([
-      "esri/Map",
-      "esri/views/SceneView",
-      "esri/layers/FeatureLayer"
-    ], function(Map, SceneView, FeatureLayer) {
+    // إنشاء الخريطة
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://api.maptiler.com/maps/satellite/style.json?key=pLIV6Yf4t59Pr1wM2d5r',
+      center: [35.2045,31.9045],
+      zoom: 17,
+      pitch: 60, // زاوية التجوال
+      bearing: -17
+    });
 
-      // إنشاء الخريطة
-      const map = new Map({
-        basemap: "satellite",
-        ground: "world-elevation"
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    // مقياس الرسم بالمتر فقط
+    map.addControl(new maplibregl.ScaleControl({ maxWidth: 200, unit: 'metric' }), 'bottom-left');
+
+    // البحث
+    const searchInput = document.getElementById('searchBox');
+    searchInput.addEventListener('keyup', function(e){
+      if(e.key === 'Enter') {
+        const query = searchInput.value.toLowerCase();
+        map.getSource('zones') && map.setFilter('zones-fill', ['==', ['downcase', ['get', 'NAME_ENGLI']], query]);
+      }
+    });
+
+    // تحميل مناطق رام الله
+    map.on('load', function() {
+      axios.get('RamallahZones.json').then(res => {
+        map.addSource('zones', {
+          type:'geojson',
+          data: res.data
+        });
+        map.addLayer({
+          id:'zones-fill',
+          type:'fill',
+          source:'zones',
+          paint:{ 'fill-color':'yellow', 'fill-opacity':0.3 }
+        });
+        map.addLayer({
+          id:'zones-line',
+          type:'line',
+          source:'zones',
+          paint:{ 'line-color':'yellow', 'line-width':2 }
+        });
       });
 
-      // إنشاء العرض الثلاثي
-      const view = new SceneView({
-        container: "viewDiv",
-        map: map,
-        camera: {
-          position: {
-            latitude: 31.9, // فلسطين تقريبي
-            longitude: 35.2,
-            z: 1000
-          },
-          tilt: 65
-        },
-        environment: {
-          lighting: {
-            directShadowsEnabled: true,
-            ambientOcclusionEnabled: true
-          }
-        }
-      });
-
-      // تعريف طبقة الحاويات (مثال تجريبي)
-      const containersLayer = new FeatureLayer({
-        url: "https://services.arcgis.com/example/arcgis/rest/services/containers/FeatureServer/0",
-        outFields: ["*"],
-        popupTemplate: {
-          title: "{اسم_المنطقة}",
-          content: `
-            <b>نوع الحاوية:</b> {نوع_الحاوية}<br>
-            <b>الرمز البريدي:</b> {الرمز_البريدي}<br><br>
-            <div class="upload-container">
-              <label>أضف صورة للحاوية:</label>
-              <input type="file" id="uploadImage" accept="image/*" onchange="showImage(event)">
-              <img id="uploadedImage" class="uploaded-image" style="display:none;">
-            </div>
-          `
-        }
-      });
-
-      map.add(containersLayer);
-
-      // دالة لعرض الصورة داخل الـ popup
-      window.showImage = function(event) {
-        const file = event.target.files[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = function(e) {
-            const img = document.getElementById("uploadedImage");
-            img.src = e.target.result;
-            img.style.display = "block";
+      // تحميل الحاويات
+      axios.get('wasteContainer.json').then(res=>{
+        const features = res.data.features.map(f=>{
+          return {
+            type:'Feature',
+            geometry:f.geometry,
+            properties:{
+              area: f.properties.zone_name || "غير محدد",
+              type: f.properties.container_type || "غير محدد",
+              postal: f.properties.postal_code || "غير محدد"
+            }
           };
-          reader.readAsDataURL(file);
-        }
-      };
+        });
+
+        map.addSource('containers', {
+          type:'geojson',
+          data:{ type:'FeatureCollection', features: features },
+          cluster:true,
+          clusterMaxZoom: 18,
+          clusterRadius:50
+        });
+
+        map.addLayer({
+          id:'clusters',
+          type:'circle',
+          source:'containers',
+          filter:['has','point_count'],
+          paint:{ 'circle-color':'orange', 'circle-radius':20 }
+        });
+
+        map.addLayer({
+          id:'cluster-count',
+          type:'symbol',
+          source:'containers',
+          filter:['has','point_count'],
+          layout:{ 'text-field':'{point_count_abbreviated}','text-size':12 }
+        });
+
+        map.addLayer({
+          id:'unclustered-point',
+          type:'circle',
+          source:'containers',
+          filter:['!has','point_count'],
+          paint:{ 'circle-color':'orange', 'circle-radius':6 }
+        });
+
+        // Popup
+        map.on('click','unclustered-point',function(e){
+          const props = e.features[0].properties;
+          const coordinates = e.features[0].geometry.coordinates.slice();
+          const popupNode = document.createElement('div');
+          popupNode.innerHTML = `
+            <b>اسم المنطقة:</b> ${props.area}<br>
+            <b>نوع الحاوية:</b> ${props.type}<br>
+            <b>الرمز البريدي:</b> ${props.postal}<br>
+            <label>أضف صورة للحاوية:</label>
+            <input type="file" accept="image/*" onchange="showImage(event)">
+            <img id="uploadedImage" class="upload-image" style="display:none;">
+          `;
+          new maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setDOMContent(popupNode)
+            .addTo(map);
+        });
+      });
+    });
+
+    // دالة عرض الصورة داخل Popup
+    function showImage(event){
+      const file = event.target.files[0];
+      if(file){
+        const reader = new FileReader();
+        reader.onload = function(e){
+          const img = document.getElementById("uploadedImage");
+          img.src = e.target.result;
+          img.style.display = "block";
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    // التجوال الثلاثي (تفعيل/إيقاف)
+    let is3D = true;
+    document.getElementById('toggle3D').addEventListener('click', ()=>{
+      if(is3D){
+        map.easeTo({pitch:0,bearing:0});
+        document.getElementById('toggle3D').innerText="🛰️ تفعيل التجوال الثلاثي";
+        is3D=false;
+      }else{
+        map.easeTo({pitch:60,bearing:-17});
+        document.getElementById('toggle3D').innerText="🗺️ إيقاف التجوال الثلاثي";
+        is3D=true;
+      }
     });
   </script>
 </body>
