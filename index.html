@@ -15,7 +15,7 @@
       margin: 0;
       height: 100%;
       width: 100%;
-      background-color: #1b1b1b; /* خلفية متناسقة */
+      background-color: #1b1b1b;
       color: white;
       font-family: Arial, sans-serif;
     }
@@ -34,7 +34,7 @@
 
     /* نافذة الفيديو */
     #videoPopup {
-      display: block;
+      display: flex;
       position: fixed;
       top: 0;
       left: 0;
@@ -44,7 +44,6 @@
       z-index: 2000;
       justify-content: center;
       align-items: center;
-      display: flex;
     }
 
     #videoPopup video {
@@ -100,8 +99,8 @@
 
   <div id="videoPopup">
     <span id="closeVideo">&times;</span>
-    <video autoplay controls>
-      <source src="videos/parcel_intro.mp4" type="video/mp4">
+    <video id="introVideo" autoplay controls>
+      <source src="videos/intro.mp4" type="video/mp4">
       Your browser does not support the video tag.
     </video>
   </div>
@@ -148,7 +147,7 @@
       parcelLayer = L.geoJson(data, {
         style: function(feature) {
           let use = feature.properties.LandUses;
-          let color = '#888'; // افتراضي
+          let color = '#888';
           if(use === 'Residential') color = '#f4d35e';
           else if(use === 'Commercial') color = '#4ea8de';
           else if(use === 'Industrial') color = '#ff7f50';
@@ -161,19 +160,23 @@
             `<b>سعر المتر:</b> ${feature.properties['Meter Price']} شيكل`
           );
 
-          // نقاط الخريطة الحرارية
           heatPoints.push([layer.getBounds().getCenter().lat, layer.getBounds().getCenter().lng, feature.properties['Meter Price']]);
         }
       }).addTo(map);
 
-      // خريطة حرارية للأسعار
       const heat = L.heatLayer(heatPoints, {radius: 25, blur: 15, maxZoom: 19}).addTo(map);
     });
 
     // فيديو البداية
     const videoPopup = document.getElementById('videoPopup');
     const closeVideo = document.getElementById('closeVideo');
+    const introVideo = document.getElementById('introVideo');
+
+    // إخفاء الفيديو عند الضغط على زر الإغلاق
     closeVideo.onclick = () => videoPopup.style.display = 'none';
+
+    // إخفاء الفيديو تلقائي بعد نهاية التشغيل
+    introVideo.onended = () => { videoPopup.style.display = 'none'; };
 
     // زر البحث عن اسم الحوض
     document.getElementById('searchBtn').addEventListener('click', function() {
