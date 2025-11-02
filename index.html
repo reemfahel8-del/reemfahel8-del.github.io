@@ -22,35 +22,6 @@
 
     #map { position: absolute; top: 0; bottom: 0; width: 100%; }
 
-    /* نافذة الفيديو */
-    #videoPopup {
-      display: flex;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.9);
-      z-index: 2000;
-      justify-content: center;
-      align-items: center;
-    }
-
-    #videoPopup video {
-      width: 600px;
-      border-radius: 8px;
-    }
-
-    #closeVideo {
-      position: absolute;
-      top: 10px;
-      right: 20px;
-      color: white;
-      cursor: pointer;
-      font-size: 28px;
-      font-weight: bold;
-    }
-
     /* شريط البحث */
     #searchContainer {
       position: absolute;
@@ -80,16 +51,6 @@
 </head>
 <body>
   <div id="map"></div>
-
-  <!-- نافذة الفيديو -->
-
-  <div id="videoPopup">
-    <span id="closeVideo">&times;</span>
-    <video id="introVideo" autoplay muted controls>
-      <source src="videos/v_intro.mp4" type="video/mp4">
-      Your browser does not support the video tag.
-    </video>
-  </div>
 
   <!-- شريط البحث -->
 
@@ -158,13 +119,6 @@
       alert("خطأ: لم يتم العثور على ملف GeoJSON. تأكدي من مساره ووجوده داخل مجلد videos.");
     });
 
-    // فيديو البداية
-    const videoPopup = document.getElementById('videoPopup');
-    const closeVideo = document.getElementById('closeVideo');
-    const introVideo = document.getElementById('introVideo');
-    closeVideo.onclick = () => videoPopup.style.display = 'none';
-    introVideo.onended = () => { videoPopup.style.display = 'none'; };
-
     // زر البحث عن اسم الحوض
     document.getElementById('searchBtn').addEventListener('click', function() {
       let searchValue = document.getElementById('searchInput').value.trim();
@@ -183,3 +137,4 @@
 
 </body>
 </html>
+
