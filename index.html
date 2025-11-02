@@ -93,7 +93,7 @@
     let heatPoints = [];
 
     // تحميل GeoJSON
-    $.getJSON("videos/Final_Parcel_Price_2.geojson", function(data) {
+    $.getJSON("Final_Parcel_Price_2.geojson", function(data) {
       parcelLayer = L.geoJson(data, {
         style: function(feature) {
           let price = feature.properties['Meter Price'];
@@ -137,3 +137,4 @@
 
 </body>
 </html>
+
