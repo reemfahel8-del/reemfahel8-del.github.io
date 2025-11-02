@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <title>Ramallah Waste Containers</title>
 
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
@@ -28,8 +27,6 @@
       cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
       font-weight: bold;
     }
-
-    .leaflet-control-3d-toggle:hover { background: #f2f2f2; }
   </style>
 </head>
 <body>
@@ -43,7 +40,7 @@
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.123/Build/Cesium/Cesium.js"></script>
 
   <script>
-    // ===== إعداد خريطة Leaflet =====
+    // خريطة 2D
     const map = L.map("map", { center: [31.9045, 35.2045], zoom: 17.5, zoomSnap: 0.5 });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -53,21 +50,23 @@
 
     L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(map);
 
-    const North = L.control({ position: "topright" });
-    North.onAdd = function () { return L.DomUtil.create("div", "leaflet-control-north"); };
-    North.addTo(map);
+    const northCtrl = L.control({ position: "topright" });
+    northCtrl.onAdd = function () {
+      return L.DomUtil.create("div", "leaflet-control-north");
+    };
+    northCtrl.addTo(map);
 
     L.Control.geocoder({
       defaultMarkGeocode: false,
       placeholder: "ابحث عن منطقة...",
       position: "topleft"
-    }).on('markgeocode', function (e) { map.fitBounds(e.geocode.bbox); }).addTo(map);
+    }).on('markgeocode', e => map.fitBounds(e.geocode.bbox)).addTo(map);
 
     const wasteCluster = L.markerClusterGroup();
 
     $.getJSON("wasteContainer.json", function (WC) {
-      const wasteContainersLayer = L.geoJson(WC, {
-        pointToLayer: function (feature, latlng) {
+      const wasteLayer = L.geoJson(WC, {
+        pointToLayer: (feature, latlng) => {
           const marker = L.circleMarker(latlng, {
             radius: 6, fillColor: "orange", color: "orange",
             weight: 1, opacity: 1, fillOpacity: 0.8
@@ -77,25 +76,25 @@
           return marker;
         }
       });
-      wasteCluster.addLayer(wasteContainersLayer);
+      wasteCluster.addLayer(wasteLayer);
       map.addLayer(wasteCluster);
     });
 
     $.getJSON("RamallahZones.json", function (RZ) {
-      zonesLayer = L.geoJson(RZ, {
-        style: () => ({ fillColor: "yellow", fillOpacity: 0.3, color: "yellow", weight: 1.0, opacity: 0.7 }),
+      L.geoJson(RZ, {
+        style: () => ({ fillColor: "yellow", fillOpacity: 0.3, color: "yellow", weight: 1.0 }),
         onEachFeature: (feature, layer) => {
           layer.on('click', () => alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE));
         }
       }).addTo(map);
     });
 
-    // ===== Cesium 3D إعداد =====
+    // وضع 3D
     let is3D = false;
     let viewer = null;
 
-    const toggle3DControl = L.control({ position: 'topleft' });
-    toggle3DControl.onAdd = function () {
+    const toggle3D = L.control({ position: 'topleft' });
+    toggle3D.onAdd = function () {
       const div = L.DomUtil.create('div', 'leaflet-control-3d-toggle');
       div.innerHTML = '🪐 تفعيل 3D';
       div.onclick = function () {
@@ -103,20 +102,29 @@
           document.getElementById("map").style.display = "none";
           document.getElementById("cesiumContainer").style.display = "block";
 
-          Cesium.Ion.defaultAccessToken = ''; // ما تحتاج مفتاح إذا ما استخدمت خرائط Ion مدفوعة
+          Cesium.Ion.defaultAccessToken = '';
+
           viewer = new Cesium.Viewer('cesiumContainer', {
-            imageryProvider: new Cesium.UrlTemplateImageryProvider({
-              url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              credit: '© OpenStreetMap contributors'
-            }),
             terrainProvider: Cesium.createWorldTerrain(),
-            animation: false, timeline: false, baseLayerPicker: false, geocoder: false
+            animation: false, timeline: false, baseLayerPicker: false, geocoder: false,
           });
 
+          // إضافة طبقة خلفية OpenStreetMap
+          const osm = new Cesium.UrlTemplateImageryProvider({
+            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            credit: '© OpenStreetMap'
+          });
+          viewer.imageryLayers.removeAll();
+          viewer.imageryLayers.addImageryProvider(osm);
+
+          viewer.scene.globe.show = true;
           viewer.scene.globe.enableLighting = true;
+          viewer.scene.backgroundColor = Cesium.Color.BLACK;
+
+          // تحريك الكاميرا لرام الله
           viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(35.2045, 31.9045, 2000),
-            orientation: { heading: 0, pitch: Cesium.Math.toRadians(-30), roll: 0 }
+            destination: Cesium.Cartesian3.fromDegrees(35.2045, 31.9045, 2500),
+            orientation: { heading: 0, pitch: Cesium.Math.toRadians(-35), roll: 0 }
           });
 
           div.innerHTML = '🌍 العودة إلى 2D';
@@ -131,7 +139,7 @@
       };
       return div;
     };
-    toggle3DControl.addTo(map);
+    toggle3D.addTo(map);
   </script>
 </body>
 </html>
