@@ -1,151 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Ramallah Waste Containers</title>
+<meta charset="utf-8" />
+<title>Ramallah Waste Containers</title>
 
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
-  <!-- Leaflet MarkerCluster CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
 
-  <style>
-    body {
-      margin: 0;
-      height: 100%;
-      width: 100%;
-    }
-    #map {
-      position: absolute;
-      width: 100%;
-      top: 0;
-      bottom: 0;
-    }
-    /* Search box style */
-    .search-container {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      z-index: 1000;
-      background: white;
-      padding: 5px;
-      border-radius: 5px;
-      box-shadow: 0 0 5px rgba(0,0,0,0.3);
-    }
-    .search-container input {
-      width: 200px;
-      padding: 4px;
-    }
-  </style>
+<style>
+body { margin:0; height:100%; width:100%; }
+#map { position:absolute; top:0; bottom:0; width:100%; }
+
+.search-container {
+  position: absolute; top: 10px; right: 10px; z-index:1000;
+  background: white; padding:5px; border-radius:5px; box-shadow:0 0 5px rgba(0,0,0,0.3);
+}
+.search-container input { width:200px; padding:4px; }
+.north-arrow {
+  background: white; padding:5px; border-radius:5px; box-shadow:0 0 5px rgba(0,0,0,0.3);
+}
+</style>
 </head>
 <body>
-  <div id="map"></div>
+<div id="map"></div>
 
-  <!-- Search box -->
-  <div class="search-container">
-    <input type="text" id="zoneSearch" placeholder="Search Zone...">
-  </div>
+<div class="search-container">
+  <input type="text" id="zoneSearch" placeholder="Search Zone...">
+</div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
-  <!-- MarkerCluster JS -->
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <!-- jQuery -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 
-  <script>
-    const map = L.map("map", {
-      center: [31.9045, 35.2045],
-      zoom: 17.5,
-      zoomSnap: 0.5
+<script>
+const map = L.map('map', {center:[31.9045,35.2045], zoom:17.5, zoomSnap:0.5});
+
+// Base map
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:20, attribution:'&copy; OpenStreetMap'}).addTo(map);
+
+// Scale
+L.control.scale({metric:true, imperial:false}).addTo(map);
+
+// North arrow
+L.control({position:'topright'}).onAdd = function(map){
+  const div = L.DomUtil.create('div','north-arrow'); div.innerHTML='&#8593; N'; return div;
+}.addTo(map);
+
+let zonesLayer = L.layerGroup().addTo(map); // placeholder
+let wasteCluster = L.markerClusterGroup().addTo(map);
+
+// Load Zones
+$.getJSON("RamallahZones.json", function(RZ){
+  zonesLayer.clearLayers();
+  L.geoJson(RZ, {
+    style: f => ({fillColor:"yellow", fillOpacity:0.3, color:"yellow", weight:1, opacity:0.7}),
+    onEachFeature: function(feature, layer){
+      layer.on('click', ()=> alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE));
+    }
+  }).addTo(zonesLayer);
+
+  // Search
+  $('#zoneSearch').on('input', function(){
+    const val = $(this).val().toLowerCase();
+    zonesLayer.eachLayer(l => {
+      if(l.feature.properties.NAME_ENGLI.toLowerCase().includes(val)){
+        map.fitBounds(l.getBounds());
+      }
     });
+  });
+});
 
-    // Base map with light background for 3D roaming feel
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 20
-    }).addTo(map);
+// Load Waste Containers
+$.getJSON("wasteContainer.json", function(WC){
+  const markers = L.geoJson(WC, {
+    pointToLayer: (feature, latlng) => L.circleMarker(latlng,{radius:6, fillColor:"orange", color:"orange", weight:1, opacity:1, fillOpacity:0.8}),
+    onEachFeature: (feature, layer) => {
+      layer.bindPopup("<b>Zone:</b> " + feature.properties.zone + "<br><b>Container Type:</b> " + feature.properties.type);
+    }
+  });
+  wasteCluster.addLayer(markers);
+  map.addLayer(wasteCluster);
+});
 
-    // Add scale (in meters)
-    L.control.scale({metric:true, imperial:false}).addTo(map);
-
-    // Add north arrow
-    const north = L.control({position: "topright"});
-    north.onAdd = function(map) {
-      const div = L.DomUtil.create("div", "north-arrow");
-      div.innerHTML = "&#8593; N";
-      div.style.background = "white";
-      div.style.padding = "5px";
-      div.style.borderRadius = "5px";
-      div.style.boxShadow = "0 0 5px rgba(0,0,0,0.3)";
-      return div;
-    };
-    north.addTo(map);
-
-    // Load Zones
-    let zonesLayer;
-    $.getJSON("RamallahZones.json", function(RZ) {
-      zonesLayer = L.geoJson(RZ, {
-        style: function(feature) {
-          return {
-            fillColor: "yellow",
-            fillOpacity: 0.3,
-            color: "yellow",
-            weight: 1,
-            opacity: 0.7
-          };
-        },
-        onEachFeature: function(feature, layer) {
-          layer.on('click', function() {
-            alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE);
-          });
-        }
-      }).addTo(map);
-
-      // Search functionality
-      document.getElementById("zoneSearch").addEventListener("input", function(e){
-        const text = e.target.value.toLowerCase();
-        zonesLayer.eachLayer(function(layer){
-          if(layer.feature.properties.NAME_ENGLI.toLowerCase().includes(text)) {
-            map.fitBounds(layer.getBounds());
-          }
-        });
-      });
-    });
-
-    // Load Waste Containers and cluster them
-    let wasteCluster = L.markerClusterGroup();
-    $.getJSON("wasteContainer.json", function(WC) {
-      L.geoJson(WC, {
-        pointToLayer: function(feature, latlng) {
-          const marker = L.circleMarker(latlng, {
-            radius: 6,
-            fillColor: "orange",
-            color: "orange",
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8
-          });
-          marker.bindPopup(
-            "<b>Zone:</b> " + feature.properties.zone +
-            "<br><b>Container Type:</b> " + feature.properties.type
-          );
-          return marker;
-        }
-      }).eachLayer(function(layer){
-        wasteCluster.addLayer(layer);
-      });
-      map.addLayer(wasteCluster);
-    });
-
-    // Layer control
-    const overlays = {
-      "Zones": zonesLayer,
-      "Waste Containers": wasteCluster
-    };
-    L.control.layers({}, overlays).addTo(map);
-
-  </script>
+// Layer control
+L.control.layers({}, {"Zones":zonesLayer, "Waste Containers":wasteCluster}).addTo(map);
+</script>
 </body>
 </html>
