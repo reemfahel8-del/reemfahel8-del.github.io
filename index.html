@@ -22,7 +22,7 @@
 <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.1.2/mapbox-gl-geocoder.css" type="text/css"/>
 
 <script>
-  mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN'; // ضع توكن Mapbox هنا
+  mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN'; // ضع توكن Mapbox الخاص بك هنا
 
   const map = new mapboxgl.Map({
     container: 'map',
@@ -34,10 +34,9 @@
     antialias: true
   });
 
-  // Add navigation controls (zoom + rotation)
   map.addControl(new mapboxgl.NavigationControl());
 
-  // Add geocoder (search box) for zones
+  // Search control
   map.addControl(new MapboxGeocoder({
     accessToken: mapboxgl.accessToken,
     mapboxgl: mapboxgl,
@@ -46,33 +45,30 @@
   }), 'top-right');
 
   map.on('load', () => {
-    // Add a scale in meters
+    // Scale in meters
     map.addControl(new mapboxgl.ScaleControl({ maxWidth: 200, unit: 'metric' }));
 
     // Load Zones GeoJSON
-    fetch('https://raw.githubusercontent.com/reemfahel8-del/project-name/main/RamallahZones.json')
+    fetch('https://raw.githubusercontent.com/reemfahel8-del/repo-name/main/RamallahZones.json') // ضع الرابط الصحيح هنا
       .then(res => res.json())
       .then(RZ => {
-        map.addSource('zones', {
-          'type': 'geojson',
-          'data': RZ
+        map.addSource('zones', { type: 'geojson', data: RZ });
+        map.addLayer({
+          id: 'zones-fill',
+          type: 'fill',
+          source: 'zones',
+          paint: { 'fill-color': 'yellow', 'fill-opacity': 0.3 }
         });
         map.addLayer({
-          'id': 'zones-fill',
-          'type': 'fill',
-          'source': 'zones',
-          'paint': { 'fill-color': 'yellow', 'fill-opacity': 0.3 }
-        });
-        map.addLayer({
-          'id': 'zones-line',
-          'type': 'line',
-          'source': 'zones',
-          'paint': { 'line-color': 'yellow', 'line-width': 2 }
+          id: 'zones-line',
+          type: 'line',
+          source: 'zones',
+          paint: { 'line-color': 'yellow', 'line-width': 2 }
         });
       });
 
     // Load Waste Containers GeoJSON
-    fetch('https://raw.githubusercontent.com/reemfahel8-del/project-name/main/wasteContainer.json')
+    fetch('https://raw.githubusercontent.com/reemfahel8-del/repo-name/main/wasteContainer.json') // ضع الرابط الصحيح هنا
       .then(res => res.json())
       .then(WC => {
         map.addSource('waste', {
@@ -83,7 +79,6 @@
           clusterRadius: 50
         });
 
-        // Cluster circles
         map.addLayer({
           id: 'clusters',
           type: 'circle',
@@ -102,7 +97,6 @@
           }
         });
 
-        // Cluster count labels
         map.addLayer({
           id: 'cluster-count',
           type: 'symbol',
@@ -111,7 +105,6 @@
           layout: { 'text-field': '{point_count_abbreviated}', 'text-size': 12 }
         });
 
-        // Individual markers
         map.addLayer({
           id: 'unclustered-point',
           type: 'circle',
@@ -125,7 +118,7 @@
           }
         });
 
-        // Popup on click
+        // Popup for single markers
         map.on('click', 'unclustered-point', (e) => {
           const coordinates = e.features[0].geometry.coordinates.slice();
           const { zone_name, container_type } = e.features[0].properties;
@@ -135,7 +128,7 @@
             .addTo(map);
         });
 
-        // Zoom into cluster on click
+        // Zoom to cluster on click
         map.on('click', 'clusters', (e) => {
           const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
           const clusterId = features[0].properties.cluster_id;
@@ -145,11 +138,11 @@
           });
         });
 
-        // Change cursor on hover
-        map.on('mouseenter', 'clusters', () => { map.getCanvas().style.cursor = 'pointer'; });
-        map.on('mouseleave', 'clusters', () => { map.getCanvas().style.cursor = ''; });
-        map.on('mouseenter', 'unclustered-point', () => { map.getCanvas().style.cursor = 'pointer'; });
-        map.on('mouseleave', 'unclustered-point', () => { map.getCanvas().style.cursor = ''; });
+        // Cursor pointer
+        map.on('mouseenter', 'clusters', () => map.getCanvas().style.cursor = 'pointer');
+        map.on('mouseleave', 'clusters', () => map.getCanvas().style.cursor = '');
+        map.on('mouseenter', 'unclustered-point', () => map.getCanvas().style.cursor = 'pointer');
+        map.on('mouseleave', 'unclustered-point', () => map.getCanvas().style.cursor = '');
       });
   });
 </script>
