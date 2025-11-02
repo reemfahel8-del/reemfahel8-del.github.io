@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+
   <!-- Cesium CSS -->
   <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.123/Build/Cesium/Widgets/widgets.css" />
 
@@ -35,16 +36,15 @@
   <div id="map"></div>
   <div id="cesiumContainer"></div>
 
-  <!-- Leaflet JS -->
+  <!-- JS Libraries -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-  <!-- Cesium JS -->
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.123/Build/Cesium/Cesium.js"></script>
 
   <script>
-    // ====== خريطة Leaflet ======
+    // ===== خريطة 2D =====
     const map = L.map("map", { center: [31.9045, 35.2045], zoom: 17.5 });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -64,9 +64,9 @@
       position: "topleft"
     }).on('markgeocode', e => map.fitBounds(e.geocode.bbox)).addTo(map);
 
+    // ===== Cluster للحاويات =====
     const wasteCluster = L.markerClusterGroup();
-
-    $.getJSON("wasteContainer.json", function (WC) {
+    $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/your-repo/main/wasteContainer.json", function(WC) {
       const wasteLayer = L.geoJson(WC, {
         pointToLayer: (feature, latlng) => {
           const marker = L.circleMarker(latlng, {
@@ -82,7 +82,8 @@
       map.addLayer(wasteCluster);
     });
 
-    $.getJSON("RamallahZones.json", function (RZ) {
+    // ===== مناطق رام الله =====
+    $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/your-repo/main/RamallahZones.json", function(RZ) {
       L.geoJson(RZ, {
         style: () => ({ fillColor: "yellow", fillOpacity: 0.3, color: "yellow", weight: 1.0 }),
         onEachFeature: (feature, layer) => {
@@ -91,7 +92,7 @@
       }).addTo(map);
     });
 
-    // ====== تفعيل 3D عبر Cesium ======
+    // ===== وضع 3D عبر Cesium =====
     let viewer = null;
     let is3D = false;
 
@@ -110,19 +111,14 @@
             animation: false,
             timeline: false,
             baseLayerPicker: false,
-            geocoder: false,
-            sceneModePicker: false,
-            homeButton: false,
-            navigationHelpButton: false,
+            geocoder: false
           });
 
-          // إصلاح الشاشة البيضاء: نضيف طبقة صور صراحة بعد الإنشاء
-          const osmLayer = viewer.imageryLayers.addImageryProvider(
-            new Cesium.UrlTemplateImageryProvider({
-              url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              credit: '© OpenStreetMap contributors'
-            })
-          );
+          // إضافة طبقة OSM واضحة
+          viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            credit: '© OpenStreetMap'
+          }));
 
           viewer.terrainProvider = Cesium.createWorldTerrain();
           viewer.scene.globe.show = true;
