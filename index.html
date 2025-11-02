@@ -1,108 +1,50 @@
-<!DOCTYPE html>
+<script src='https://api.mapbox.com/mapbox-gl-js/v2.22.0/mapbox-gl.js'></script>
 
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Ramallah Waste Containers 3D</title>
-
-<!-- CesiumJS CSS -->
-
-<link href="https://cdn.jsdelivr.net/npm/cesium@1.111.0/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
-
-<style>
-  html, body, #cesiumContainer { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
-  #searchBox { position: absolute; top: 10px; right: 10px; z-index: 1; width: 250px; }
-</style>
-
-</head>
-<body>
-
-<input id="searchBox" type="text" placeholder="Search Zone Name..." />
-
-<div id="cesiumContainer"></div>
-
-<!-- CesiumJS -->
-
-<script src="https://cdn.jsdelivr.net/npm/cesium@1.111.0/Build/Cesium/Cesium.js"></script>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<link href='https://api.mapbox.com/mapbox-gl-js/v2.22.0/mapbox-gl.css' rel='stylesheet' />
 
 <script>
-// Cesium Viewer
-const viewer = new Cesium.Viewer('cesiumContainer', {
-    terrainProvider: Cesium.createWorldTerrain(),
-    sceneMode: Cesium.SceneMode.SCENE3D,
-    baseLayerPicker: true,
-    geocoder: false, // we will use custom search
-    timeline: false,
-    animation: false
+mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN';
+
+const map3D = new mapboxgl.Map({
+    container: 'map', // نفس div الخريطة الحالي
+    style: 'mapbox://styles/mapbox/satellite-streets-v12', 
+    center: [35.2045, 31.9045],
+    zoom: 17.5,
+    pitch: 60,       // الميل لتفعيل 3D
+    bearing: -17.6,  // دوران الخريطة
+    antialias: true
 });
 
-// Add scale bar
-viewer.scene.screenSpaceCameraController.enableDistanceLegend = true;
+// تفعيل التحكم في التجوال الثلاثي
+map3D.addControl(new mapboxgl.NavigationControl());
 
-// Load Zones GeoJSON
-let zones = [];
-$.getJSON("RamallahZones.json", function(RZ) {
-    zones = RZ.features;
-    RZ.features.forEach(feature => {
-        const coords = feature.geometry.coordinates[0].map(c => Cesium.Cartesian3.fromDegrees(c[0], c[1], 0));
-        const polygon = viewer.entities.add({
-            name: feature.properties.NAME_ENGLI,
-            polygon: {
-                hierarchy: coords,
-                material: Cesium.Color.YELLOW.withAlpha(0.3),
-                outline: true,
-                outlineColor: Cesium.Color.YELLOW
-            }
-        });
-    });
-});
-
-// Load Waste Containers and Cluster them
-$.getJSON("wasteContainer.json", function(WC) {
-    const points = WC.features.map(f => ({
-        position: Cesium.Cartesian3.fromDegrees(f.geometry.coordinates[0], f.geometry.coordinates[1], 0),
-        properties: f.properties
-    }));
-
-    points.forEach(p => {
-        const entity = viewer.entities.add({
-            position: p.position,
-            point: { pixelSize: 10, color: Cesium.Color.ORANGE },
-            properties: p.properties
-        });
-
-        // Popup on click
-        entity.description = `
-            <b>Region:</b> ${p.properties.region}<br>
-            <b>Container Type:</b> ${p.properties.type}
-        `;
+// إضافة بيانات الحاويات كـ GeoJSON (نفس بياناتك)
+map3D.on('load', () => {
+    map3D.addSource('waste', {
+        type: 'geojson',
+        data: 'wasteContainer.json'
     });
 
-    // Optional clustering with Cesium
-    viewer.entities.suspendEvents();
-    viewer.entities._entityCollection._entities._array = points.map(p => viewer.entities.add({
-        position: p.position,
-        point: { pixelSize: 10, color: Cesium.Color.ORANGE },
-        properties: p.properties,
-        description: `<b>Region:</b> ${p.properties.region}<br><b>Container Type:</b> ${p.properties.type}`
-    }));
-    viewer.entities.resumeEvents();
-});
+    map3D.addLayer({
+        id: 'waste-points',
+        type: 'circle',
+        source: 'waste',
+        paint: {
+            'circle-radius': 6,
+            'circle-color': 'orange'
+        }
+    });
 
-// Simple search by zone name
-document.getElementById("searchBox").addEventListener("change", function(e) {
-    const name = e.target.value.toLowerCase();
-    const matched = viewer.entities.values.find(ent => ent.name && ent.name.toLowerCase() === name);
-    if(matched) {
-        viewer.flyTo(matched);
-    } else {
-        alert("Zone not found!");
-    }
-});
+    // إضافة Popup عند الضغط
+    map3D.on('click', 'waste-points', function(e) {
+        const props = e.features[0].properties;
+        new mapboxgl.Popup()
+            .setLngLat(e.lngLat)
+            .setHTML(`<b>Region:</b> ${props.region}<br><b>Container Type:</b> ${props.type}`)
+            .addTo(map3D);
+    });
 
+    map3D.on('mouseenter', 'waste-points', () => map3D.getCanvas().style.cursor = 'pointer');
+    map3D.on('mouseleave', 'waste-points', () => map3D.getCanvas().style.cursor = '');
+});
 </script>
-
-</body>
-</html>
