@@ -1,210 +1,195 @@
 <!DOCTYPE html>
 
 <html lang="en">
-
 <head>
   <meta charset="utf-8" />
-  <title>Smart Ramallah Waste Map</title>
+  <title>Ramallah Parcel Valuation Map</title>
+
+  <!-- Leaflet CSS -->
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js">
 
   <style>
     body {
       margin: 0;
       height: 100%;
       width: 100%;
-      background: #111;
-    }
-
-    #map {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-    }
-
-    /* شريط المعلومات */
-    #infoBox {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: rgba(30, 30, 30, 0.8);
-      color: #fff;
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 14px;
-      z-index: 1000;
+      background-color: #1b1b1b; /* خلفية متناسقة */
+      color: white;
       font-family: Arial, sans-serif;
     }
 
-    /* زر التحليل */
-    .analyze-btn {
-      position: absolute;
-      bottom: 20px;
-      right: 20px;
-      background: #ffa500;
-      color: #111;
-      border: none;
-      padding: 10px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: bold;
-      z-index: 1000;
-      transition: 0.3s;
-    }
-
-    .analyze-btn:hover {
-      background: #ffcc33;
-    }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
 
     /* إشارة الشمال */
-    .leaflet-control-north {
+    .north-arrow {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      width: 70px;
+      z-index: 1000;
+      filter: drop-shadow(2px 2px 2px black);
+    }
+
+    /* نافذة الفيديو */
+    #videoPopup {
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.9);
+      z-index: 2000;
+      justify-content: center;
+      align-items: center;
+      display: flex;
+    }
+
+    #videoPopup video {
+      width: 600px;
+      border-radius: 8px;
+    }
+
+    #closeVideo {
       position: absolute;
       top: 10px;
-      left: 10px;
-      background: url('https://upload.wikimedia.org/wikipedia/commons/e/ec/North_arrow.svg') no-repeat center;
-      background-size: 40px 40px;
-      width: 40px;
-      height: 40px;
+      right: 20px;
+      color: white;
+      cursor: pointer;
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    /* شريط البحث */
+    #searchContainer {
+      position: absolute;
+      top: 100px;
+      right: 15px;
+      background: rgba(30,30,30,0.8);
+      padding: 8px;
+      border-radius: 6px;
       z-index: 1000;
+    }
+
+    #searchInput {
+      padding: 4px;
+      border-radius: 4px;
+      border: none;
+    }
+    #searchBtn {
+      padding: 4px 6px;
+      border: none;
+      border-radius: 4px;
+      background: orange;
+      cursor: pointer;
+      margin-left: 4px;
     }
   </style>
 
 </head>
-
 <body>
   <div id="map"></div>
-  <div id="infoBox">مرر المؤشر على أي منطقة</div>
-  <button class="analyze-btn" id="analyzeBtn">تحليل سريع 🧠</button>
+
+  <!-- إشارة الشمال -->
+
+  <img src="https://upload.wikimedia.org/wikipedia/commons/8/88/Compass_rose_simple.svg" class="north-arrow" alt="North Arrow">
+
+  <!-- نافذة الفيديو -->
+
+  <div id="videoPopup">
+    <span id="closeVideo">&times;</span>
+    <video autoplay controls>
+      <source src="videos/parcel_intro.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+  </div>
+
+  <!-- شريط البحث -->
+
+  <div id="searchContainer">
+    <input type="text" id="searchInput" placeholder="ابحث عن اسم الحوض">
+    <button id="searchBtn">بحث</button>
+  </div>
+
+  <!-- مكتبات -->
 
   <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <script>
-    const map = L.map("map", {
+    const map = L.map('map', {
       center: [31.9045, 35.2045],
-      zoom: 17.5,
-      zoomSnap: 0.5,
+      zoom: 17,
+      zoomSnap: 0.5
     });
 
-    // خريطة الأساس
+    // خريطة أساسية
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; OpenStreetMap & CARTO',
       subdomains: 'abcd',
       maxZoom: 20
     }).addTo(map);
 
-    let wasteContainers = [];
-    let zonesLayer;
-
-    // تحميل طبقة الحاويات
-    $.getJSON("wasteContainer.json", function (WC) {
-      wasteContainers = L.geoJson(WC, {
-        pointToLayer: function (feature, latlng) {
-          return L.circleMarker(latlng, {
-            radius: 5,
-            fillColor: "orange",
-            color: "orange",
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8
-          });
-        }
-      }).addTo(map);
-    });
-
-    // تحميل المناطق مع الفيديو والرسم البياني
-    $.getJSON("RamallahZones.json", function (RZ) {
-      zonesLayer = L.geoJson(RZ, {
-        style: function (feature) {
-          return {
-            fillColor: "yellow",
-            fillOpacity: 0.3,
-            color: "yellow",
-            weight: 1.0,
-            opacity: 0.7
-          };
-        },
-        onEachFeature: function (feature, layer) {
-          // Popup فيه فيديو + رسم بياني
-          layer.bindPopup(`
-            <h4>${feature.properties.NAME_ENGLI}</h4>
-            <video width="230" controls>
-              <source src="videos/ramallah_info.mp4" type="video/mp4">
-            </video>
-            <canvas id="chart-${feature.properties.MAIL_CODE}" width="200" height="150"></canvas>
-          `);
-
-          layer.on('popupopen', function () {
-            const ctx = document.getElementById(`chart-${feature.properties.MAIL_CODE}`).getContext('2d');
-            new Chart(ctx, {
-              type: 'bar',
-              data: {
-                labels: ['Organic', 'Plastic', 'Metal'],
-                datasets: [{
-                  label: 'Tons',
-                  data: [12, 7, 3],
-                  backgroundColor: ['#66bb6a', '#ffa726', '#42a5f5']
-                }]
-              },
-              options: { plugins: { legend: { display: false } } }
-            });
-          });
-
-          // تحديث شريط المعلومات عند تمرير الماوس
-          layer.on('mouseover', function () {
-            document.getElementById('infoBox').innerHTML = `المنطقة: <b>${feature.properties.NAME_ENGLI}</b>`;
-          });
-          layer.on('mouseout', function () {
-            document.getElementById('infoBox').innerHTML = 'مرر المؤشر على أي منطقة';
-          });
-        }
-      }).addTo(map);
-    });
-
     // مقياس الرسم
-    L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
+    L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
-    // إشارة الشمال
-    L.Control.North = L.Control.extend({
-      onAdd: function () {
-        const img = L.DomUtil.create('div', 'leaflet-control-north');
-        return img;
-      }
-    });
-    L.control.north = function (opts) {
-      return new L.Control.North(opts);
-    }
-    L.control.north({ position: 'topleft' }).addTo(map);
+    let parcelLayer;
+    let heatPoints = [];
 
-    // عند التكبير الشديد تظهر صورة واقعية
-    const bounds = [[31.9035, 35.2035], [31.9055, 35.2055]];
-    map.on('zoomend', function () {
-      if (map.getZoom() > 18) {
-        if (!map._imageOverlayAdded) {
-          L.imageOverlay('images/ramallah_close.jpg', bounds).addTo(map);
-          map._imageOverlayAdded = true;
+    // تحميل GeoJSON
+    $.getJSON("Final_Parcel_Valuation_Price_2.geojson", function(data) {
+      parcelLayer = L.geoJson(data, {
+        style: function(feature) {
+          let use = feature.properties.LandUses;
+          let color = '#888'; // افتراضي
+          if(use === 'Residential') color = '#f4d35e';
+          else if(use === 'Commercial') color = '#4ea8de';
+          else if(use === 'Industrial') color = '#ff7f50';
+          return { color: color, fillColor: color, fillOpacity: 0.5, weight: 1 };
+        },
+        onEachFeature: function(feature, layer) {
+          layer.bindPopup(
+            `<b>اسم الحوض:</b> ${feature.properties['اسم الحوض']}<br>` +
+            `<b>نوع الاستخدام:</b> ${feature.properties.LandUses}<br>` +
+            `<b>سعر المتر:</b> ${feature.properties['Meter Price']} شيكل`
+          );
+
+          // نقاط الخريطة الحرارية
+          heatPoints.push([layer.getBounds().getCenter().lat, layer.getBounds().getCenter().lng, feature.properties['Meter Price']]);
         }
-      }
+      }).addTo(map);
+
+      // خريطة حرارية للأسعار
+      const heat = L.heatLayer(heatPoints, {radius: 25, blur: 15, maxZoom: 19}).addTo(map);
     });
 
-    // زر التحليل السريع
-    document.getElementById('analyzeBtn').addEventListener('click', function () {
-      alert("📊 عدد الحاويات داخل المناطق: \nسيتم حسابها عند توفر البيانات الدقيقة.\n(يمكن ربطها بجدول إحصائي لاحقًا)");
+    // فيديو البداية
+    const videoPopup = document.getElementById('videoPopup');
+    const closeVideo = document.getElementById('closeVideo');
+    closeVideo.onclick = () => videoPopup.style.display = 'none';
+
+    // زر البحث عن اسم الحوض
+    document.getElementById('searchBtn').addEventListener('click', function() {
+      let searchValue = document.getElementById('searchInput').value.trim();
+      if(!searchValue || !parcelLayer) return;
+      let found = false;
+      parcelLayer.eachLayer(function(layer) {
+        if(layer.feature.properties['اسم الحوض'] === searchValue) {
+          map.fitBounds(layer.getBounds());
+          layer.openPopup();
+          found = true;
+        }
+      });
+      if(!found) alert("لم يتم العثور على الحوض");
     });
   </script>
 
 </body>
-
 </html>
-
-
-
-
-
-
-
-
-
-
-
