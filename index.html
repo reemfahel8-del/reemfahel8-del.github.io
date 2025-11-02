@@ -29,13 +29,27 @@
       bottom: 0;
     }
 
-    /* North arrow style */
+    /* North arrow */
     .leaflet-control-north {
       background-image: url('https://upload.wikimedia.org/wikipedia/commons/6/6b/Compass_Rose_North.svg');
       background-repeat: no-repeat;
       background-size: contain;
       width: 60px;
       height: 60px;
+    }
+
+    /* 3D toggle button */
+    .leaflet-control-3d-toggle {
+      background: white;
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      font-weight: bold;
+    }
+
+    .leaflet-control-3d-toggle:hover {
+      background: #f2f2f2;
     }
   </style>
 </head>
@@ -53,7 +67,7 @@
   <!-- Search / Geocoder -->
   <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
-  <!-- Leaflet 3D / Perspective -->
+  <!-- Leaflet 3D / Globe -->
   <script src="https://unpkg.com/leaflet.globe@1.0.0/dist/leaflet.globe.min.js"></script>
 
   <script>
@@ -66,14 +80,38 @@
 
     const map = L.map("map", mapOptions);
 
-    // إضافة خريطة الأساس
+    // خريطة الأساس
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; OpenStreetMap & CARTO',
       subdomains: 'abcd',
       maxZoom: 20
     }).addTo(map);
 
-    // طبقة تجميع الحاويات
+    // مقياس الرسم بالمتر فقط
+    L.control.scale({
+      position: 'bottomleft',
+      metric: true,
+      imperial: false
+    }).addTo(map);
+
+    // إشارة الشمال
+    const North = L.control({ position: "topright" });
+    North.onAdd = function () {
+      const div = L.DomUtil.create("div", "leaflet-control-north");
+      return div;
+    };
+    North.addTo(map);
+
+    // أداة البحث
+    L.Control.geocoder({
+      defaultMarkGeocode: false,
+      placeholder: "ابحث عن منطقة...",
+      position: "topleft"
+    }).on('markgeocode', function (e) {
+      map.fitBounds(e.geocode.bbox);
+    }).addTo(map);
+
+    // طبقة التجميع
     const wasteCluster = L.markerClusterGroup();
 
     // تحميل الحاويات
@@ -122,32 +160,32 @@
       }).addTo(map);
     });
 
-    // مقياس الرسم
-    L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
+    // وضع 3D Globe
+    let is3D = false;
+    let globeInstance = null;
 
-    // إشارة الشمال
-    const North = L.control({ position: "topright" });
-    North.onAdd = function () {
-      const div = L.DomUtil.create("div", "leaflet-control-north");
+    const toggle3DControl = L.control({ position: 'topleft' });
+    toggle3DControl.onAdd = function () {
+      const div = L.DomUtil.create('div', 'leaflet-control-3d-toggle');
+      div.innerHTML = '🪐 تفعيل 3D';
+      div.onclick = function () {
+        if (!is3D) {
+          globeInstance = L.globe(map, {
+            elevation: 2000,
+            animate: true,
+            atmosphere: true
+          });
+          div.innerHTML = '🌍 إيقاف 3D';
+          is3D = true;
+        } else {
+          globeInstance.remove();
+          div.innerHTML = '🪐 تفعيل 3D';
+          is3D = false;
+        }
+      };
       return div;
     };
-    North.addTo(map);
-
-    // أداة البحث
-    L.Control.geocoder({
-      defaultMarkGeocode: false,
-      placeholder: "ابحث عن منطقة...",
-      position: "topleft"
-    }).on('markgeocode', function (e) {
-      map.fitBounds(e.geocode.bbox);
-    }).addTo(map);
-
-    // وضع التجوال الثلاثي الأبعاد (Globe Mode)
-    L.globe(map, {
-      elevation: 2000, // ارتفاع العرض
-      animate: true,
-      atmosphere: true
-    });
+    toggle3DControl.addTo(map);
   </script>
 </body>
 
