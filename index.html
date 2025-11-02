@@ -1,135 +1,110 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <title>Ramallah Waste Containers - 3D View</title>
-
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="https://cdn.maptiler.com/maptiler-leaflet/latest/maptiler-leaflet.css" />
-
+  <title>خريطة الحاويات - عرض ثلاثي الأبعاد</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/dark/main.css" />
+  <script src="https://js.arcgis.com/4.30/"></script>
   <style>
-    body, html {
-      margin: 0;
+    html, body, #viewDiv {
       padding: 0;
+      margin: 0;
       height: 100%;
       width: 100%;
+      background-color: #222;
+      color: white;
     }
-    #map {
-      width: 100%;
-      height: 100%;
-    }
-    .north-arrow {
-      position: absolute;
-      top: 70px;
-      left: 10px;
-      background: rgba(255,255,255,0.8);
-      padding: 5px;
-      border-radius: 5px;
-      z-index: 9999;
-    }
-    .north-arrow img {
-      width: 50px;
-      height: auto;
-    }
-    .leaflet-control-geocoder {
+    .upload-container {
       margin-top: 10px;
-      margin-left: 10px;
+      text-align: center;
     }
-    .toggle3D {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: white;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      padding: 6px 10px;
-      font-size: 14px;
+    .upload-container input[type="file"] {
+      display: block;
+      margin: 0 auto;
+      background: #333;
+      color: white;
+      border-radius: 8px;
+      padding: 5px;
       cursor: pointer;
-      z-index: 10000;
-      box-shadow: 0px 2px 6px rgba(0,0,0,0.2);
     }
-    .toggle3D:hover {
-      background: #f0f0f0;
+    .uploaded-image {
+      margin-top: 10px;
+      max-width: 100%;
+      border-radius: 10px;
     }
   </style>
 </head>
-
 <body>
-  <div id="map"></div>
-  <div class="north-arrow">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/0/09/Compass_rose_simple.svg" alt="North Arrow">
-  </div>
-  <div class="toggle3D" id="toggle3D">🛰️ تشغيل التجوال الثلاثي</div>
-
-  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/jquery@3.5.1/dist/jquery.min.js"></script>
-  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <script src="https://cdn.maptiler.com/maptiler-leaflet/latest/maptiler-leaflet.js"></script>
+  <div id="viewDiv"></div>
 
   <script>
-    // إعداد الخريطة
-    const map = L.map("map", {
-      center: [31.9045, 35.2045],
-      zoom: 17,
-      zoomSnap: 0.5
-    });
+    require([
+      "esri/Map",
+      "esri/views/SceneView",
+      "esri/layers/FeatureLayer"
+    ], function(Map, SceneView, FeatureLayer) {
 
-    // خريطة الأقمار الصناعية (Esri)
-    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
-      attribution: '&copy; Esri, Maxar, Earthstar Geographics'
-    }).addTo(map);
+      // إنشاء الخريطة
+      const map = new Map({
+        basemap: "satellite",
+        ground: "world-elevation"
+      });
 
-    // مقياس الرسم بالمتر فقط
-    L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
-
-    // خانة البحث
-    const geocoder = L.Control.geocoder({
-      defaultMarkGeocode: false,
-      placeholder: "ابحث باسم المنطقة..."
-    }).on('markgeocode', function(e) {
-      const bbox = e.geocode.bbox;
-      const poly = L.polygon([
-        bbox.getSouthEast(),
-        bbox.getNorthEast(),
-        bbox.getNorthWest(),
-        bbox.getSouthWest()
-      ]);
-      map.fitBounds(poly.getBounds());
-    }).addTo(map);
-
-    // تحميل بيانات المناطق
-    $.getJSON("RamallahZones.json", function(RZ) {
-      L.geoJson(RZ, {
-        style: {
-          fillColor: "yellow",
-          fillOpacity: 0.3,
-          color: "yellow",
-          weight: 1.0,
-          opacity: 0.7
+      // إنشاء العرض الثلاثي
+      const view = new SceneView({
+        container: "viewDiv",
+        map: map,
+        camera: {
+          position: {
+            latitude: 31.9, // فلسطين تقريبي
+            longitude: 35.2,
+            z: 1000
+          },
+          tilt: 65
         },
-        onEachFeature: function(feature, layer) {
-          layer.bindPopup("<b>Zone:</b> " + feature.properties.NAME_ENGLI + "<br><b>Mail Code:</b> " + feature.properties.MAIL_CODE);
+        environment: {
+          lighting: {
+            directShadowsEnabled: true,
+            ambientOcclusionEnabled: true
+          }
         }
-      }).addTo(map);
-    });
+      });
 
-    // تحميل بيانات الحاويات مع clustering
-    const markers = L.markerClusterGroup();
-    $.getJSON("wasteContainer.json", function(WC) {
-      const wasteContainersLayer = L.geoJson(WC, {
-        pointToLayer: function(feature, latlng) {
-          const marker = L.circleMarker(latlng, {
-            radius: 6,
-            fillColor: "orange",
-            color: "orange",
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8
-          });
-          const popupContent = `
-            <b>اسم المنطقة:
+      // تعريف طبقة الحاويات (مثال تجريبي)
+      const containersLayer = new FeatureLayer({
+        url: "https://services.arcgis.com/example/arcgis/rest/services/containers/FeatureServer/0",
+        outFields: ["*"],
+        popupTemplate: {
+          title: "{اسم_المنطقة}",
+          content: `
+            <b>نوع الحاوية:</b> {نوع_الحاوية}<br>
+            <b>الرمز البريدي:</b> {الرمز_البريدي}<br><br>
+            <div class="upload-container">
+              <label>أضف صورة للحاوية:</label>
+              <input type="file" id="uploadImage" accept="image/*" onchange="showImage(event)">
+              <img id="uploadedImage" class="uploaded-image" style="display:none;">
+            </div>
+          `
+        }
+      });
+
+      map.add(containersLayer);
+
+      // دالة لعرض الصورة داخل الـ popup
+      window.showImage = function(event) {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            const img = document.getElementById("uploadedImage");
+            img.src = e.target.result;
+            img.style.display = "block";
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+    });
+  </script>
+</body>
+</html>
