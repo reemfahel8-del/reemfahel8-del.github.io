@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Ramallah Parcel Valuation Map</title>
+  <title>Ramallah Waste Containers Map</title>
 
   <!-- Leaflet CSS -->
 
@@ -76,7 +76,7 @@
       zoomSnap: 0.5
     });
 
-    // خريطة أساسية
+    // الخريطة الأساسية
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; OpenStreetMap & CARTO',
       subdomains: 'abcd',
@@ -86,55 +86,87 @@
     // مقياس الرسم
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
-    // سهم الشمال أكبر
+    // سهم الشمال
     L.control.compass({position: 'topright', autoActive: true, showDigit:true, size: 80}).addTo(map);
 
-    let parcelLayer;
+    let wasteLayer;
+    let zoneLayer;
     let heatPoints = [];
 
-    // تحميل GeoJSON
-    $.getJSON("videos/Final_Parcel_Price_2.geojson", function(data) {
-      parcelLayer = L.geoJson(data, {
-        style: function(feature) {
-          let price = feature.properties['Meter Price'];
-          let use = feature.properties.LandUses;
-          let color = '#888';
-          if(use === 'Residential') color = price < 200 ? '#fce5cd' : price < 400 ? '#f4d35e' : '#f0a500';
-          else if(use === 'Commercial') color = price < 200 ? '#cce5ff' : price < 400 ? '#4ea8de' : '#0b5394';
-          else if(use === 'Industrial') color = price < 200 ? '#ffd6d6' : price < 400 ? '#ff7f50' : '#d62828';
-          return { color: color, fillColor: color, fillOpacity: 0.6, weight: 1 };
-        },
-        onEachFeature: function(feature, layer) {
-          layer.bindPopup(
-            `<b>اسم الحوض:</b> ${feature.properties['اسم الحوض']}<br>` +
-            `<b>نوع الاستخدام:</b> ${feature.properties.LandUses}<br>` +
-            `<b>سعر المتر:</b> ${feature.properties['Meter Price']} شيكل`
-          );
-          heatPoints.push([layer.getBounds().getCenter().lat, layer.getBounds().getCenter().lng, feature.properties['Meter Price']]);
+    // تحميل الحاويات
+    $.getJSON("videos/wasteContainer.json", function(WC) {
+      wasteLayer = L.geoJson(WC, {
+        pointToLayer: function(feature, latlng) {
+          return L.circleMarker(latlng, {
+            radius: 5,
+            fillColor: "orange",
+            color: "orange",
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+          });
         }
       }).addTo(map);
-
-      L.heatLayer(heatPoints, {radius: 25, blur: 15, maxZoom: 19}).addTo(map);
     }).fail(function() {
-      alert("خطأ: لم يتم العثور على ملف GeoJSON. تأكدي من مساره ووجوده داخل مجلد videos.");
+      alert("خطأ: لم يتم العثور على ملف wasteContainer.json. تأكدي من المسار.");
     });
 
-    // زر البحث عن اسم الحوض
+    // تحميل المناطق
+    $.getJSON("videos/RamallahZones.json", function(RZ) {
+      zoneLayer = L.geoJson(RZ, {
+        style: function(feature) {
+          return {
+            fillColor: "yellow",
+            fillOpacity: 0.3,
+            color: "yellow",
+            weight: 1.0,
+            opacity: 0.7
+          };
+        },
+        onEachFeature: function(feature, layer) {
+          layer.on('click', function(e) {
+            alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE);
+          });
+        }
+      }).addTo(map);
+    }).fail(function() {
+      alert("خطأ: لم يتم العثور على ملف RamallahZones.json. تأكدي من المسار.");
+    });
+
+    // زر البحث عن الحاويات حسب اسم الحوض
     document.getElementById('searchBtn').addEventListener('click', function() {
       let searchValue = document.getElementById('searchInput').value.trim();
-      if(!searchValue || !parcelLayer) return;
+      if(!searchValue) return;
       let found = false;
-      parcelLayer.eachLayer(function(layer) {
-        if(layer.feature.properties['اسم الحوض'] === searchValue) {
-          map.fitBounds(layer.getBounds());
-          layer.openPopup();
-          found = true;
-        }
-      });
+      if(wasteLayer) {
+        wasteLayer.eachLayer(function(layer) {
+          if(layer.feature.properties.NAME === searchValue) { // عدلي حسب اسم الفيلد الصحيح
+            map.fitBounds(layer.getBounds());
+            found = true;
+          }
+        });
+      }
       if(!found) alert("لم يتم العثور على الحوض");
     });
+
+    // التحكم بالطبقات
+    const baseLayers = {};
+    const overlays = {
+      "Zones": zoneLayer,
+      "Waste Containers": wasteLayer
+    };
+
+    // التحكم بالطبقات بعد التأكد من تحميلها
+    const layersControl = L.control.layers(baseLayers, overlays).addTo(map);
+
+    // تأكيد إضافة الطبقات بشكل افتراضي
+    setTimeout(function() {
+      if(zoneLayer) zoneLayer.addTo(map);
+      if(wasteLayer) wasteLayer.addTo(map);
+    }, 500);
   </script>
 
 </body>
 </html>
+
 
