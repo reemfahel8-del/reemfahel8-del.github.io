@@ -1,155 +1,138 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8" />
-<title>Ramallah Waste Containers 3D</title>
+  <meta charset="utf-8" />
+  <title>Ramallah Waste Containers</title>
 
-<!-- Mapbox GL CSS -->
-<link href="https://api.mapbox.com/mapbox-gl-js/v2.20.0/mapbox-gl.css" rel="stylesheet" />
-<style>
-  body { margin:0; padding:0; }
-  #map { position:absolute; top:0; bottom:0; width:100%; }
-</style>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+
+  <!-- Leaflet Search CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+
+  <!-- Leaflet Marker Cluster CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+
+  <style>
+    body {
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
+
+    #map {
+      position: absolute;
+      width: 100%;
+      top: 0;
+      bottom: 0;
+    }
+  </style>
 </head>
+
 <body>
-<div id="map"></div>
+  <div id="map"></div>
 
-<!-- Mapbox GL JS -->
-<script src="https://api.mapbox.com/mapbox-gl-js/v2.20.0/mapbox-gl.js"></script>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
 
-<!-- Mapbox GL Geocoder -->
-<script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.1.2/mapbox-gl-geocoder.min.js"></script>
-<link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.1.2/mapbox-gl-geocoder.css" type="text/css"/>
+  <!-- jQuery -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 
-<script>
-  // ضع توكن Mapbox الخاص بك هنا
-  mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN';
+  <!-- Leaflet Control Geocoder (Search) -->
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
-  const map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/mapbox/light-v11',
-    center: [35.2045, 31.9045],
-    zoom: 17,
-    pitch: 60,  
-    bearing: -17.6,
-    antialias: true
-  });
+  <!-- Leaflet Marker Cluster -->
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 
-  // التحكم بالتكبير والتدوير
-  map.addControl(new mapboxgl.NavigationControl());
+  <!-- Leaflet 3D Flyto (Cesium-like) using Leaflet. For simple 3D effect, we'll use Leaflet.Elevation + Terrain tiles -->
+  <script>
+    const map = L.map("map", {
+      center: [31.9045, 35.2045],
+      zoom: 17,
+      zoomSnap: 0.5
+    });
 
-  // Search
-  map.addControl(new MapboxGeocoder({
-    accessToken: mapboxgl.accessToken,
-    mapboxgl: mapboxgl,
-    placeholder: "Search Zone",
-    marker: false
-  }), 'top-right');
+    // Add a base map suitable for 3D feel
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
+      subdomains: 'abcd',
+      maxZoom: 20
+    }).addTo(map);
 
-  map.on('load', () => {
-    // Scale بالمتر
-    map.addControl(new mapboxgl.ScaleControl({ maxWidth: 200, unit: 'metric' }));
+    // Scale control in meters only
+    L.control.scale({ metric: true, imperial: false }).addTo(map);
 
-    // تحميل المناطق (Zones) من ملف محلي
-    fetch('RamallahZones.json')
-      .then(res => res.json())
-      .then(RZ => {
-        map.addSource('zones', { type: 'geojson', data: RZ });
-        map.addLayer({
-          id: 'zones-fill',
-          type: 'fill',
-          source: 'zones',
-          paint: { 'fill-color': 'yellow', 'fill-opacity': 0.3 }
+    // Marker Cluster Group
+    const markers = L.markerClusterGroup();
+
+    // Load Waste Containers with clustering
+    $.getJSON("wasteContainer.json", function (WC) {
+      WC.features.forEach(function (feature) {
+        const latlng = [feature.geometry.coordinates[1], feature.geometry.coordinates[0]];
+        const marker = L.circleMarker(latlng, {
+          radius: 6,
+          fillColor: "orange",
+          color: "orange",
+          weight: 1,
+          opacity: 1,
+          fillOpacity: 0.8
         });
-        map.addLayer({
-          id: 'zones-line',
-          type: 'line',
-          source: 'zones',
-          paint: { 'line-color': 'yellow', 'line-width': 2 }
-        });
+
+        // Add popup
+        const popupContent = `<b>Zone:</b> ${feature.properties.zone || "N/A"}<br>
+                              <b>Type:</b> ${feature.properties.type || "N/A"}`;
+        marker.bindPopup(popupContent);
+
+        markers.addLayer(marker);
       });
+      map.addLayer(markers);
+    });
 
-    // تحميل الحاويات (Waste Containers) من ملف محلي
-    fetch('wasteContainer.json')
-      .then(res => res.json())
-      .then(WC => {
-        map.addSource('waste', {
-          type: 'geojson',
-          data: WC,
-          cluster: true,
-          clusterMaxZoom: 18,
-          clusterRadius: 50
-        });
+    // Load Zones
+    let zonesLayer;
+    $.getJSON("RamallahZones.json", function (RZ) {
+      zonesLayer = L.geoJson(RZ, {
+        style: function (feature) {
+          return {
+            fillColor: "yellow",
+            fillOpacity: 0.3,
+            color: "yellow",
+            weight: 1,
+            opacity: 0.7
+          };
+        },
+        onEachFeature: function (feature, layer) {
+          layer.bindPopup(`<b>Zone:</b> ${feature.properties.NAME_ENGLI}<br>
+                           <b>MAIL_CODE:</b> ${feature.properties.MAIL_CODE}`);
+        }
+      }).addTo(map);
 
-        // Cluster circles
-        map.addLayer({
-          id: 'clusters',
-          type: 'circle',
-          source: 'waste',
-          filter: ['has', 'point_count'],
-          paint: {
-            'circle-color': '#FF8C00',
-            'circle-radius': [
-              'step',
-              ['get', 'point_count'],
-              15, 10,
-              20, 50,
-              25
-            ],
-            'circle-opacity': 0.8
-          }
-        });
+      // Add Search Control for Zones
+      const searchControl = L.Control.geocoder({
+        placeholder: "Search zone...",
+        defaultMarkGeocode: false
+      }).on('markgeocode', function (e) {
+        map.fitBounds(e.geocode.bbox);
+      }).addTo(map);
+    });
 
-        // Cluster count labels
-        map.addLayer({
-          id: 'cluster-count',
-          type: 'symbol',
-          source: 'waste',
-          filter: ['has', 'point_count'],
-          layout: { 'text-field': '{point_count_abbreviated}', 'text-size': 12 }
-        });
+    // Layer control
+    const baseLayers = {};
+    const overlays = {
+      "Zones": zonesLayer,
+      "Waste Containers": markers
+    };
+    L.control.layers(baseLayers, overlays).addTo(map);
 
-        // Individual markers
-        map.addLayer({
-          id: 'unclustered-point',
-          type: 'circle',
-          source: 'waste',
-          filter: ['!', ['has', 'point_count']],
-          paint: {
-            'circle-color': 'orange',
-            'circle-radius': 6,
-            'circle-stroke-width': 1,
-            'circle-stroke-color': '#fff'
-          }
-        });
-
-        // Popup لكل حاوية
-        map.on('click', 'unclustered-point', (e) => {
-          const coordinates = e.features[0].geometry.coordinates.slice();
-          const { zone_name, container_type } = e.features[0].properties;
-          new mapboxgl.Popup()
-            .setLngLat(coordinates)
-            .setHTML(`<b>Zone:</b> ${zone_name}<br><b>Type:</b> ${container_type}`)
-            .addTo(map);
-        });
-
-        // Zoom عند الضغط على Cluster
-        map.on('click', 'clusters', (e) => {
-          const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
-          const clusterId = features[0].properties.cluster_id;
-          map.getSource('waste').getClusterExpansionZoom(clusterId, (err, zoom) => {
-            if (err) return;
-            map.easeTo({ center: features[0].geometry.coordinates, zoom: zoom });
-          });
-        });
-
-        // Cursor pointer
-        map.on('mouseenter', 'clusters', () => map.getCanvas().style.cursor = 'pointer');
-        map.on('mouseleave', 'clusters', () => map.getCanvas().style.cursor = '');
-        map.on('mouseenter', 'unclustered-point', () => map.getCanvas().style.cursor = 'pointer');
-        map.on('mouseleave', 'unclustered-point', () => map.getCanvas().style.cursor = '');
+    // Simple 3D flyover effect by changing pitch & zoom on click (pseudo-3D)
+    map.on('click', function (e) {
+      map.flyTo(e.latlng, 18, {
+        animate: true,
+        duration: 2
       });
-  });
-</script>
+    });
+  </script>
 </body>
 </html>
