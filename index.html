@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Ramallah Waste Containers - Final Edition (No Video)</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" /> 
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" /> 
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-search@2.9.8/dist/leaflet-search.min.css" /> 
+
+  <style>
+    body { margin: 0; height: 100%; width: 100%; overflow: hidden; background: #000; }
+    #map { position: absolute; width: 100%; top: 0; bottom: 0; z-index: 10; }
+
+    /* North Arrow */
+    .north-arrow-control {
+        background-color: white;
+        padding: 5px;
+        border-radius: 4px;
+        box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+        text-align: center;
+        width: 30px;
+        height: 30px;
+        line-height: 20px;
+        font-size: 20px;
+        font-weight: bold;
+        color: black;
+    }
+
+    .leaflet-popup-content { direction: rtl; }
+    .popup-label { font-weight: bold; margin-bottom: 5px; }
+    .popup-file-upload { margin-top: 10px; padding-top: 5px; border-top: 1px dashed #ccc; }
+
+    .leaflet-control-layers { direction: rtl; }
+    .leaflet-control-search { z-index: 1001 !important; }
+  </style>
+
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script> 
+
+  <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script> 
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-search@2.9.8/dist/leaflet-search.min.js"></script> 
+
+  <script>
+    const map = L.map("map", {
+      zoomSnap: 0.5,
+      center: [31.9045, 35.2045],
+      zoom: 17.5
+    });
+
+    // خريطة أساسية
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap & CARTO',
+      subdomains: 'abcd',
+      maxZoom: 20
+    }).addTo(map);
+
+    // سهم الشمال
+    L.Control.NorthArrow = L.Control.extend({
+      onAdd: function(map) {
+        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control north-arrow-control');
+        container.innerHTML = 'N';
+        return container;
+      }
+    });
+    L.control.northArrow = function(opts) { return new L.Control.NorthArrow(opts); }
+    L.control.northArrow({ position: 'topright' }).addTo(map);
+
+    // مقياس الرسم
+    L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
+
+    let zonesLayer, wasteContainersLayer;
+    let zonesData = [];
+    let markers = L.markerClusterGroup({ maxClusterRadius: 80, disableClusteringAtZoom: 18 });
+
+    function getZoneNameForContainer(coords) {
+      const point = turf.point(coords);
+      for (const feature of zonesData) {
+        if (turf.booleanPointInPolygon(point, feature)) {
+          return feature.properties.NAME_ENGLI || feature.properties.MAIL_CODE || 'منطقة غير مسماة';
+        }
+      }
+      return 'خارج منطقة محددة';
+    }
+
+    // تحميل الحاويات
+    $.getJSON("wasteContainer.json", function(WC) {
+      WC.features.forEach(function(feature) {
+        const coords = feature.geometry.coordinates;
+        const zoneName = getZoneNameForContainer(coords);
+
+        const popupContent = `
+          <h4>بيانات الحاوية</h4>
+          <div class="popup-label">النوع: ${feature.properties.TYPE_OF_WA || 'غير معروف'}</div>
+          <div class="popup-label">المنطقة: ${zoneName}</div>
+          <div class="popup-file-upload">
+            <label>أضف صورة للحاوية:</label>
+            <input type="file" accept="image/*" class="container-photo-upload" data-id="${feature.properties.ID}">
+          </div>
+        `;
+
+        const marker = L.circleMarker([coords[1], coords[0]], {
+          radius: 5,
+          fillColor: "orange",
+          color: "orange",
+          weight: 1,
+          opacity: 1,
+          fillOpacity: 0.8
+        }).bindPopup(popupContent);
+
+        markers.addLayer(marker);
+      });
+
+      map.addLayer(markers);
+      wasteContainersLayer = markers;
+      updateLayerControl();
+    });
+
+    // تحميل المناطق
+    $.getJSON("RamallahZones.json", function(RZ) {
+      zonesData = RZ.features;
+
+      zonesLayer = L.geoJson(RZ, {
+        style: f => ({
+          fillColor: "yellow",
+          fillOpacity: 0.3,
+          color: "yellow",
+          weight: 1,
+          opacity: 0.7
+        }),
+        onEachFeature: function(feature, layer) {
+          layer.on('click', function() {
+            alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE);
+          });
+        }
+      }).addTo(map);
+
+      L.control.search({
+        layer: zonesLayer,
+        propertyName: 'NAME_ENGLI',
+        marker: false,
+        moveToLocation: (latlng, title, map) => map.setView(latlng, 15),
+        textPlaceholder: 'البحث عن منطقة...',
+        zoom: 15
+      }).addTo(map);
+
+      updateLayerControl();
+    });
+
+    function updateLayerControl() {
+      const overlays = {};
+      if (zonesLayer) overlays["التجمعات السكنية"] = zonesLayer;
+      if (wasteContainersLayer) overlays["حاويات النفايات (Clustering)"] = wasteContainersLayer;
+
+      if (map.layersControl) map.removeControl(map.layersControl);
+      map.layersControl = L.control.layers({}, overlays).addTo(map);
+    }
+  </script>
+
+</body>
+</html>
