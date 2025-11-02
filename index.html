@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 
 <html lang="en">
 <head>
@@ -8,7 +8,6 @@
   <!-- Leaflet CSS -->
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js">
   <link rel="stylesheet" href="https://rawcdn.githack.com/makinacorpus/Leaflet.Compass/master/leaflet-compass.css">
 
   <style>
@@ -48,7 +47,7 @@
       right: 20px;
       color: white;
       cursor: pointer;
-      font-size: 24px;
+      font-size: 28px;
       font-weight: bold;
     }
 
@@ -57,7 +56,7 @@
       position: absolute;
       top: 100px;
       right: 15px;
-      background: rgba(30,30,30,0.8);
+      background: rgba(30,30,30,0.85);
       padding: 8px;
       border-radius: 6px;
       z-index: 1000;
@@ -87,7 +86,7 @@
   <div id="videoPopup">
     <span id="closeVideo">&times;</span>
     <video id="introVideo" autoplay controls>
-      <source src="videos/intro.mp4" type="video/mp4">
+      <source src="videos/v_intro.mp4" type="video/mp4">
       Your browser does not support the video tag.
     </video>
   </div>
@@ -106,8 +105,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
-
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <script src="https://rawcdn.githack.com/makinacorpus/Leaflet.Compass/master/leaflet-compass.js"></script>
 
@@ -128,22 +125,23 @@
     // مقياس الرسم
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
-    // إضافة سهم الشمال
-    L.control.compass({position: 'topright', autoActive: true, showDigit:true}).addTo(map);
+    // سهم الشمال أكبر
+    L.control.compass({position: 'topright', autoActive: true, showDigit:true, textErr: "خطأ", size: 80}).addTo(map);
 
     let parcelLayer;
     let heatPoints = [];
 
     // تحميل GeoJSON
-    $.getJSON("Final_Parcel_Valuation_Price_2.geojson", function(data) {
+    $.getJSON("videos/Final_Parcel_Price_2.geojson", function(data) {
       parcelLayer = L.geoJson(data, {
         style: function(feature) {
+          let price = feature.properties['Meter Price'];
           let use = feature.properties.LandUses;
           let color = '#888';
-          if(use === 'Residential') color = '#f4d35e';
-          else if(use === 'Commercial') color = '#4ea8de';
-          else if(use === 'Industrial') color = '#ff7f50';
-          return { color: color, fillColor: color, fillOpacity: 0.5, weight: 1 };
+          if(use === 'Residential') color = price < 200 ? '#fce5cd' : price < 400 ? '#f4d35e' : '#f0a500';
+          else if(use === 'Commercial') color = price < 200 ? '#cce5ff' : price < 400 ? '#4ea8de' : '#0b5394';
+          else if(use === 'Industrial') color = price < 200 ? '#ffd6d6' : price < 400 ? '#ff7f50' : '#d62828';
+          return { color: color, fillColor: color, fillOpacity: 0.6, weight: 1 };
         },
         onEachFeature: function(feature, layer) {
           layer.bindPopup(
@@ -155,7 +153,9 @@
         }
       }).addTo(map);
 
-      const heat = L.heatLayer(heatPoints, {radius: 25, blur: 15, maxZoom: 19}).addTo(map);
+      L.heatLayer(heatPoints, {radius: 25, blur: 15, maxZoom: 19}).addTo(map);
+    }).fail(function() {
+      alert("خطأ: لم يتم العثور على ملف GeoJSON. تأكدي من مساره ووجوده داخل مجلد videos.");
     });
 
     // فيديو البداية
