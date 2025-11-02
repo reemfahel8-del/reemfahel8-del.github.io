@@ -1,164 +1,140 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="en">
+
 <head>
   <meta charset="utf-8" />
-  <title>Ramallah Waste Containers 2D/3D</title>
+  <title>Ramallah Waste Containers</title>
 
   <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+
+  <!-- MarkerCluster CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
 
-  <!-- Cesium CSS -->
-  <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.123/Build/Cesium/Widgets/widgets.css" />
+  <!-- Leaflet Search CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-search/dist/leaflet-search.min.css" />
 
   <style>
-    body { margin: 0; height: 100%; width: 100%; overflow: hidden; }
-    #map, #cesiumContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-    #cesiumContainer { display: none; }
+    body {
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
 
-    .leaflet-control-3d-toggle {
-      background: white; border-radius: 8px; padding: 6px 10px;
-      cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      font-weight: bold;
+    #map {
+      position: absolute;
+      width: 100%;
+      top: 0;
+      bottom: 0;
     }
   </style>
 </head>
+
 <body>
   <div id="map"></div>
-  <div id="cesiumContainer"></div>
 
-  <!-- JS Libraries -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
+
+  <!-- jQuery -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+  <!-- MarkerCluster JS -->
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-  <script src="https://cesium.com/downloads/cesiumjs/releases/1.123/Build/Cesium/Cesium.js"></script>
+
+  <!-- Leaflet Search JS -->
+  <script src="https://unpkg.com/leaflet-control-search/dist/leaflet-search.min.js"></script>
+
+  <!-- Leaflet 3D JS (Leaflet.Globe or similar) -->
+  <script src="https://unpkg.com/leaflet.globe/dist/Leaflet.Globe.min.js"></script>
 
   <script>
-    // ===== خريطة 2D =====
-    const map = L.map("map", { center: [31.9045, 35.2045], zoom: 17.5 });
-
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap & CARTO',
-      subdomains: 'abcd', maxZoom: 20
-    }).addTo(map);
-
-    // مقياس الرسم بالمتر فقط
-    L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(map);
-
-    // البحث باسم المنطقة
-    L.Control.geocoder({
-      defaultMarkGeocode: false,
-      placeholder: "ابحث عن منطقة...",
-      position: "topleft"
-    }).on('markgeocode', e => map.fitBounds(e.geocode.bbox)).addTo(map);
-
-    // ===== Cluster للحاويات =====
-    const wasteCluster = L.markerClusterGroup();
-    const wasteLayer = L.geoJson(null, {
-      pointToLayer: (feature, latlng) => {
-        const marker = L.circleMarker(latlng, {
-          radius: 6, fillColor: "orange", color: "orange",
-          weight: 1, opacity: 1, fillOpacity: 0.8
-        });
-        marker.bindPopup(`<b>المنطقة:</b> ${feature.properties.ZoneName || "غير محددة"}<br>
-                          <b>نوع الحاوية:</b> ${feature.properties.Type || "غير معروف"}`);
-        return marker;
-      }
-    });
-    wasteCluster.addLayer(wasteLayer);
-    map.addLayer(wasteCluster);
-
-    $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/reemfahel8-del.github.io/main/wasteContainer.json", function(WC) {
-      wasteLayer.addData(WC);
-    });
-
-    // ===== مناطق رام الله =====
-    const zonesLayer = L.geoJson(null, {
-      style: () => ({ fillColor: "yellow", fillOpacity: 0.3, color: "yellow", weight: 1.0 }),
-      onEachFeature: (feature, layer) => {
-        layer.on('click', () => alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE));
-      }
-    }).addTo(map);
-
-    $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/reemfahel8-del.github.io/main/RamallahZones.json", function(RZ) {
-      zonesLayer.addData(RZ);
-    });
-
-    // ===== وضع 3D عبر Cesium =====
-    let viewer = null;
-    let is3D = false;
-
-    const toggle3D = L.control({ position: 'topright' }); // زر على اليمين
-    toggle3D.onAdd = function () {
-      const div = L.DomUtil.create('div', 'leaflet-control-3d-toggle');
-      div.innerHTML = '🪐 تفعيل 3D';
-      div.onclick = function () {
-        if (!is3D) {
-          document.getElementById("map").style.display = "none";
-          document.getElementById("cesiumContainer").style.display = "block";
-
-          Cesium.Ion.defaultAccessToken = '';
-
-          viewer = new Cesium.Viewer('cesiumContainer', {
-            animation: false,
-            timeline: false,
-            baseLayerPicker: false,
-            geocoder: false
-          });
-
-          viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
-            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            credit: '© OpenStreetMap'
-          }));
-
-          viewer.terrainProvider = Cesium.createWorldTerrain();
-          viewer.scene.globe.show = true;
-          viewer.scene.globe.enableLighting = true;
-
-          // ===== إضافة الحاويات في Cesium =====
-          $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/reemfahel8-del.github.io/main/wasteContainer.json", function(WC) {
-            WC.features.forEach(f => {
-              viewer.entities.add({
-                name: f.properties.ZoneName,
-                position: Cesium.Cartesian3.fromDegrees(f.geometry.coordinates[0], f.geometry.coordinates[1], 5),
-                point: { pixelSize: 10, color: Cesium.Color.ORANGE },
-                description: `<b>المنطقة:</b> ${f.properties.ZoneName}<br><b>نوع الحاوية:</b> ${f.properties.Type}`
-              });
-            });
-          });
-
-          // ===== إضافة المناطق في Cesium =====
-          $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/reemfahel8-del.github.io/main/RamallahZones.json", function(RZ) {
-            RZ.features.forEach(f => {
-              const hierarchy = f.geometry.coordinates[0].map(c => Cesium.Cartesian3.fromDegrees(c[0], c[1], 0));
-              viewer.entities.add({
-                name: f.properties.NAME_ENGLI,
-                polygon: { hierarchy: hierarchy, material: Cesium.Color.YELLOW.withAlpha(0.3), outline: true, outlineColor: Cesium.Color.YELLOW }
-              });
-            });
-          });
-
-          viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(35.2045, 31.9045, 2500),
-            orientation: { heading: 0, pitch: Cesium.Math.toRadians(-35), roll: 0 }
-          });
-
-          div.innerHTML = '🌍 العودة إلى 2D';
-          is3D = true;
-        } else {
-          document.getElementById("cesiumContainer").style.display = "none";
-          document.getElementById("map").style.display = "block";
-          if (viewer) { viewer.destroy(); viewer = null; }
-          div.innerHTML = '🪐 تفعيل 3D';
-          is3D = false;
-        }
-      };
-      return div;
+    const mapOptions = {
+      zoomSnap: 0.5,
+      center: [31.9045, 35.2045],
+      zoom: 17.5,
     };
-    toggle3D.addTo(map);
+
+    const map = L.map('map', mapOptions);
+
+    // 3D Globe style
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 20
+    }).addTo(map);
+
+    // Add scale in meters only
+    L.control.scale({ metric: true, imperial: false }).addTo(map);
+
+    // Marker cluster group for waste containers
+    const wasteCluster = L.markerClusterGroup();
+
+    let wasteContainersLayer;
+
+    $.getJSON("wasteContainer.json", function(WC) {
+      wasteContainersLayer = L.geoJson(WC, {
+        pointToLayer: function(feature, latlng) {
+          const marker = L.circleMarker(latlng, {
+            radius: 5,
+            fillColor: "orange",
+            color: "orange",
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+          });
+          marker.bindPopup(
+            `<b>Zone:</b> ${feature.properties.zone_name}<br>
+             <b>Type:</b> ${feature.properties.container_type}`
+          );
+          return marker;
+        }
+      });
+      wasteCluster.addLayer(wasteContainersLayer);
+      map.addLayer(wasteCluster);
+    });
+
+    // Zones layer
+    let zonesLayer;
+    $.getJSON("RamallahZones.json", function(RZ) {
+      zonesLayer = L.geoJson(RZ, {
+        style: function(feature) {
+          return {
+            fillColor: "yellow",
+            fillOpacity: 0.3,
+            color: "yellow",
+            weight: 1.0,
+            opacity: 0.7
+          };
+        },
+        onEachFeature: function(feature, layer) {
+          layer.on('click', function() {
+            alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE);
+          });
+        }
+      }).addTo(map);
+
+      // Add search control
+      const searchControl = new L.Control.Search({
+        layer: zonesLayer,
+        propertyName: 'NAME_ENGLI',
+        position: 'topright',
+        initial: false,
+        zoom: 18,
+        marker: false
+      });
+      map.addControl(searchControl);
+    });
+
+    // Layer controls
+    const baseLayers = {};
+    const overlays = {
+      "Zones": zonesLayer,
+      "Waste Containers": wasteCluster
+    };
+    L.control.layers(baseLayers, overlays).addTo(map);
+
   </script>
 </body>
 </html>
