@@ -1,6 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="ar">
 <head>
   <meta charset="utf-8" />
   <title>Ramallah Waste Containers</title>
@@ -23,10 +22,10 @@
       margin: 0;
       height: 100%;
       width: 100%;
+      overflow: hidden;
     }
 
-    #map,
-    #cesiumContainer {
+    #map, #cesiumContainer {
       position: absolute;
       top: 0;
       left: 0;
@@ -38,7 +37,6 @@
       display: none;
     }
 
-    /* North arrow */
     .leaflet-control-north {
       background-image: url('https://upload.wikimedia.org/wikipedia/commons/6/6b/Compass_Rose_North.svg');
       background-repeat: no-repeat;
@@ -47,13 +45,12 @@
       height: 60px;
     }
 
-    /* 3D toggle button */
     .leaflet-control-3d-toggle {
       background: white;
       border-radius: 8px;
       padding: 6px 10px;
       cursor: pointer;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
       font-weight: bold;
     }
 
@@ -62,22 +59,21 @@
     }
   </style>
 </head>
-
 <body>
   <div id="map"></div>
   <div id="cesiumContainer"></div>
 
-  <!-- Leaflet -->
+  <!-- Leaflet & plugins -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
-  <!-- CesiumJS -->
+  <!-- Cesium -->
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.123/Build/Cesium/Cesium.js"></script>
 
   <script>
-    // إعداد الخريطة العادية
+    // إعداد خريطة Leaflet
     const map = L.map("map", {
       center: [31.9045, 35.2045],
       zoom: 17.5,
@@ -157,9 +153,9 @@
       }).addTo(map);
     });
 
-    // تفعيل / إيقاف وضع 3D
+    // ===== Cesium 3D =====
     let is3D = false;
-    let viewer;
+    let viewer = null;
 
     const toggle3DControl = L.control({ position: 'topleft' });
     toggle3DControl.onAdd = function () {
@@ -167,22 +163,25 @@
       div.innerHTML = '🪐 تفعيل 3D';
       div.onclick = function () {
         if (!is3D) {
+          // إخفاء خريطة Leaflet
           document.getElementById("map").style.display = "none";
           document.getElementById("cesiumContainer").style.display = "block";
 
           // تهيئة Cesium
           viewer = new Cesium.Viewer('cesiumContainer', {
             terrainProvider: Cesium.createWorldTerrain(),
-            timeline: false,
             animation: false,
-            baseLayerPicker: false
+            timeline: false,
+            baseLayerPicker: false,
+            geocoder: false
           });
 
+          // نقل الكاميرا إلى رام الله
           viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(35.2045, 31.9045, 1500),
+            destination: Cesium.Cartesian3.fromDegrees(35.2045, 31.9045, 2000),
             orientation: {
               heading: Cesium.Math.toRadians(0.0),
-              pitch: Cesium.Math.toRadians(-30.0),
+              pitch: Cesium.Math.toRadians(-35.0),
               roll: 0.0
             }
           });
@@ -190,8 +189,15 @@
           div.innerHTML = '🌍 العودة إلى 2D';
           is3D = true;
         } else {
+          // العودة إلى الخريطة العادية
           document.getElementById("cesiumContainer").style.display = "none";
           document.getElementById("map").style.display = "block";
+
+          if (viewer) {
+            viewer.destroy();
+            viewer = null;
+          }
+
           div.innerHTML = '🪐 تفعيل 3D';
           is3D = false;
         }
@@ -201,5 +207,4 @@
     toggle3DControl.addTo(map);
   </script>
 </body>
-
 </html>
