@@ -2,7 +2,7 @@
 <html lang="ar">
 <head>
   <meta charset="utf-8" />
-  <title>Ramallah Waste Containers</title>
+  <title>Ramallah Waste Containers 2D/3D</title>
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -66,30 +66,34 @@
 
     // ===== Cluster للحاويات =====
     const wasteCluster = L.markerClusterGroup();
+    const wasteLayer = L.geoJson(null, {
+      pointToLayer: (feature, latlng) => {
+        const marker = L.circleMarker(latlng, {
+          radius: 6, fillColor: "orange", color: "orange",
+          weight: 1, opacity: 1, fillOpacity: 0.8
+        });
+        marker.bindPopup(`<b>المنطقة:</b> ${feature.properties.ZoneName || "غير محددة"}<br>
+                          <b>نوع الحاوية:</b> ${feature.properties.Type || "غير معروف"}`);
+        return marker;
+      }
+    });
+    wasteCluster.addLayer(wasteLayer);
+    map.addLayer(wasteCluster);
+
     $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/your-repo/main/wasteContainer.json", function(WC) {
-      const wasteLayer = L.geoJson(WC, {
-        pointToLayer: (feature, latlng) => {
-          const marker = L.circleMarker(latlng, {
-            radius: 6, fillColor: "orange", color: "orange",
-            weight: 1, opacity: 1, fillOpacity: 0.8
-          });
-          marker.bindPopup(`<b>المنطقة:</b> ${feature.properties.ZoneName || "غير محددة"}<br>
-                            <b>نوع الحاوية:</b> ${feature.properties.Type || "غير معروف"}`);
-          return marker;
-        }
-      });
-      wasteCluster.addLayer(wasteLayer);
-      map.addLayer(wasteCluster);
+      wasteLayer.addData(WC);
     });
 
     // ===== مناطق رام الله =====
+    const zonesLayer = L.geoJson(null, {
+      style: () => ({ fillColor: "yellow", fillOpacity: 0.3, color: "yellow", weight: 1.0 }),
+      onEachFeature: (feature, layer) => {
+        layer.on('click', () => alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE));
+      }
+    }).addTo(map);
+
     $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/your-repo/main/RamallahZones.json", function(RZ) {
-      L.geoJson(RZ, {
-        style: () => ({ fillColor: "yellow", fillOpacity: 0.3, color: "yellow", weight: 1.0 }),
-        onEachFeature: (feature, layer) => {
-          layer.on('click', () => alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE));
-        }
-      }).addTo(map);
+      zonesLayer.addData(RZ);
     });
 
     // ===== وضع 3D عبر Cesium =====
@@ -102,6 +106,7 @@
       div.innerHTML = '🪐 تفعيل 3D';
       div.onclick = function () {
         if (!is3D) {
+          // إخفاء Leaflet واظهار Cesium
           document.getElementById("map").style.display = "none";
           document.getElementById("cesiumContainer").style.display = "block";
 
@@ -114,7 +119,7 @@
             geocoder: false
           });
 
-          // إضافة طبقة OSM واضحة
+          // إضافة طبقة OSM
           viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
             url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             credit: '© OpenStreetMap'
@@ -127,6 +132,37 @@
           viewer.scene.skyAtmosphere.show = true;
           viewer.scene.globe.showGroundAtmosphere = true;
 
+          // ===== إضافة الحاويات إلى Cesium =====
+          $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/your-repo/main/wasteContainer.json", function(WC) {
+            WC.features.forEach(f => {
+              viewer.entities.add({
+                name: f.properties.ZoneName,
+                position: Cesium.Cartesian3.fromDegrees(f.geometry.coordinates[0], f.geometry.coordinates[1], 5),
+                point: {
+                  pixelSize: 10,
+                  color: Cesium.Color.ORANGE
+                },
+                description: `<b>المنطقة:</b> ${f.properties.ZoneName}<br><b>نوع الحاوية:</b> ${f.properties.Type}`
+              });
+            });
+          });
+
+          // ===== إضافة المناطق إلى Cesium =====
+          $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/your-repo/main/RamallahZones.json", function(RZ) {
+            RZ.features.forEach(f => {
+              const hierarchy = f.geometry.coordinates[0].map(c => Cesium.Cartesian3.fromDegrees(c[0], c[1], 0));
+              viewer.entities.add({
+                name: f.properties.NAME_ENGLI,
+                polygon: {
+                  hierarchy: hierarchy,
+                  material: Cesium.Color.YELLOW.withAlpha(0.3),
+                  outline: true,
+                  outlineColor: Cesium.Color.YELLOW
+                }
+              });
+            });
+          });
+
           viewer.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(35.2045, 31.9045, 2500),
             orientation: { heading: 0, pitch: Cesium.Math.toRadians(-35), roll: 0 }
@@ -135,6 +171,7 @@
           div.innerHTML = '🌍 العودة إلى 2D';
           is3D = true;
         } else {
+          // العودة إلى 2D
           document.getElementById("cesiumContainer").style.display = "none";
           document.getElementById("map").style.display = "block";
           if (viewer) { viewer.destroy(); viewer = null; }
