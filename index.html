@@ -2,95 +2,96 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Ramallah Waste Containers</title>
+  <title>Ramallah Waste Containers - 3D View</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="https://cdn.maptiler.com/maptiler-leaflet/latest/maptiler-leaflet.css" />
+
   <style>
-    body {
+    body, html {
       margin: 0;
+      padding: 0;
       height: 100%;
       width: 100%;
     }
-
     #map {
-      position: absolute;
       width: 100%;
       height: 100%;
-      top: 0;
-      bottom: 0;
     }
-
-    .leaflet-control-scale-line {
-      font-size: 12px;
-      background: rgba(255, 255, 255, 0.8);
-      padding: 3px;
-    }
-
     .north-arrow {
       position: absolute;
-      top: 70px; /* تحت البحث */
+      top: 70px;
       left: 10px;
-      background: rgba(255, 255, 255, 0.8);
+      background: rgba(255,255,255,0.8);
       padding: 5px;
       border-radius: 5px;
       z-index: 9999;
     }
-
     .north-arrow img {
       width: 50px;
       height: auto;
     }
-
     .leaflet-control-geocoder {
       margin-top: 10px;
       margin-left: 10px;
+    }
+    .toggle3D {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 14px;
+      cursor: pointer;
+      z-index: 10000;
+      box-shadow: 0px 2px 6px rgba(0,0,0,0.2);
+    }
+    .toggle3D:hover {
+      background: #f0f0f0;
     }
   </style>
 </head>
 
 <body>
   <div id="map"></div>
-
-  <!-- إشارة الشمال -->
   <div class="north-arrow">
     <img src="https://upload.wikimedia.org/wikipedia/commons/0/09/Compass_rose_simple.svg" alt="North Arrow">
   </div>
+  <div class="toggle3D" id="toggle3D">🛰️ تشغيل التجوال الثلاثي</div>
 
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script src="https://unpkg.com/jquery@3.5.1/dist/jquery.min.js"></script>
   <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <script src="https://unpkg.com/leaflet.earth/dist/leaflet.earth.min.js"></script>
+  <script src="https://cdn.maptiler.com/maptiler-leaflet/latest/maptiler-leaflet.js"></script>
 
   <script>
     // إعداد الخريطة
     const map = L.map("map", {
       center: [31.9045, 35.2045],
       zoom: 17,
-      zoomSnap: 0.5,
+      zoomSnap: 0.5
     });
 
-    // ✅ خلفية الأقمار الصناعية من Esri
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    // خريطة الأقمار الصناعية (Esri)
+    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19,
       attribution: '&copy; Esri, Maxar, Earthstar Geographics'
     }).addTo(map);
 
-    // ✅ مقياس الرسم (بالمتر فقط)
-    L.control.scale({
-      position: 'bottomleft',
-      imperial: false // إلغاء القدم
-    }).addTo(map);
+    // مقياس الرسم بالمتر فقط
+    L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
 
-    // ✅ خانة البحث (يسار فوق)
+    // خانة البحث
     const geocoder = L.Control.geocoder({
       defaultMarkGeocode: false,
       placeholder: "ابحث باسم المنطقة..."
-    })
-    .on('markgeocode', function(e) {
+    }).on('markgeocode', function(e) {
       const bbox = e.geocode.bbox;
       const poly = L.polygon([
         bbox.getSouthEast(),
@@ -99,13 +100,11 @@
         bbox.getSouthWest()
       ]);
       map.fitBounds(poly.getBounds());
-    })
-    .addTo(map);
+    }).addTo(map);
 
-    // ✅ تحميل بيانات المناطق
-    let zonesLayer;
+    // تحميل بيانات المناطق
     $.getJSON("RamallahZones.json", function(RZ) {
-      zonesLayer = L.geoJson(RZ, {
+      L.geoJson(RZ, {
         style: {
           fillColor: "yellow",
           fillOpacity: 0.3,
@@ -114,15 +113,12 @@
           opacity: 0.7
         },
         onEachFeature: function(feature, layer) {
-          layer.bindPopup(
-            "<b>Zone:</b> " + feature.properties.NAME_ENGLI +
-            "<br><b>Mail Code:</b> " + feature.properties.MAIL_CODE
-          );
+          layer.bindPopup("<b>Zone:</b> " + feature.properties.NAME_ENGLI + "<br><b>Mail Code:</b> " + feature.properties.MAIL_CODE);
         }
       }).addTo(map);
     });
 
-    // ✅ تحميل بيانات الحاويات مع clustering
+    // تحميل بيانات الحاويات مع clustering
     const markers = L.markerClusterGroup();
     $.getJSON("wasteContainer.json", function(WC) {
       const wasteContainersLayer = L.geoJson(WC, {
@@ -136,22 +132,4 @@
             fillOpacity: 0.8
           });
           const popupContent = `
-            <b>اسم المنطقة:</b> ${feature.properties.Area || "غير محدد"}<br>
-            <b>نوع الحاوية:</b> ${feature.properties.Type || "غير محدد"}
-          `;
-          marker.bindPopup(popupContent);
-          return marker;
-        }
-      });
-      markers.addLayer(wasteContainersLayer);
-      map.addLayer(markers);
-    });
-
-    // ✅ وضع التجوال الثلاثي الأبعاد (يمين فوق)
-    L.control.earth({
-      position: 'topright',
-      title: "تجوال ثلاثي الأبعاد"
-    }).addTo(map);
-  </script>
-</body>
-</html>
+            <b>اسم المنطقة:
