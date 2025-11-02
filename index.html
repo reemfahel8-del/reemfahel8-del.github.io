@@ -2,118 +2,107 @@
 
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Ramallah Waste Containers</title>
+<meta charset="utf-8">
+<title>Ramallah Waste Containers 3D</title>
 
-  <!-- Leaflet CSS -->
+<!-- CesiumJS CSS -->
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <!-- Leaflet MarkerCluster CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
-  <!-- Leaflet Search CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-search/dist/leaflet-search.min.css" />
+<link href="https://cdn.jsdelivr.net/npm/cesium@1.111.0/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
 
-  <style>
-    body { margin: 0; height: 100%; width: 100%; }
-    #map { position: absolute; width: 100%; height: 100%; }
-    .leaflet-control-search { right: 10px; left: auto; top: 10px; }
-  </style>
+<style>
+  html, body, #cesiumContainer { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
+  #searchBox { position: absolute; top: 10px; right: 10px; z-index: 1; width: 250px; }
+</style>
 
 </head>
 <body>
-  <div id="map"></div>
 
-  <!-- Leaflet JS -->
+<input id="searchBox" type="text" placeholder="Search Zone Name..." />
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<div id="cesiumContainer"></div>
 
-  <!-- jQuery -->
+<!-- CesiumJS -->
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cesium@1.111.0/Build/Cesium/Cesium.js"></script>
 
-  <!-- MarkerCluster JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+<script>
+// Cesium Viewer
+const viewer = new Cesium.Viewer('cesiumContainer', {
+    terrainProvider: Cesium.createWorldTerrain(),
+    sceneMode: Cesium.SceneMode.SCENE3D,
+    baseLayerPicker: true,
+    geocoder: false, // we will use custom search
+    timeline: false,
+    animation: false
+});
 
-  <!-- Leaflet Search JS -->
+// Add scale bar
+viewer.scene.screenSpaceCameraController.enableDistanceLegend = true;
 
-  <script src="https://unpkg.com/leaflet-control-search/dist/leaflet-search.min.js"></script>
+// Load Zones GeoJSON
+let zones = [];
+$.getJSON("RamallahZones.json", function(RZ) {
+    zones = RZ.features;
+    RZ.features.forEach(feature => {
+        const coords = feature.geometry.coordinates[0].map(c => Cesium.Cartesian3.fromDegrees(c[0], c[1], 0));
+        const polygon = viewer.entities.add({
+            name: feature.properties.NAME_ENGLI,
+            polygon: {
+                hierarchy: coords,
+                material: Cesium.Color.YELLOW.withAlpha(0.3),
+                outline: true,
+                outlineColor: Cesium.Color.YELLOW
+            }
+        });
+    });
+});
 
-  <script>
-    const map = L.map('map', {
-      center: [31.9045, 35.2045],
-      zoom: 17.5,
-      zoomSnap: 0.5
+// Load Waste Containers and Cluster them
+$.getJSON("wasteContainer.json", function(WC) {
+    const points = WC.features.map(f => ({
+        position: Cesium.Cartesian3.fromDegrees(f.geometry.coordinates[0], f.geometry.coordinates[1], 0),
+        properties: f.properties
+    }));
+
+    points.forEach(p => {
+        const entity = viewer.entities.add({
+            position: p.position,
+            point: { pixelSize: 10, color: Cesium.Color.ORANGE },
+            properties: p.properties
+        });
+
+        // Popup on click
+        entity.description = `
+            <b>Region:</b> ${p.properties.region}<br>
+            <b>Container Type:</b> ${p.properties.type}
+        `;
     });
 
-    // Base map with dark tiles
-    const baseMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 20
-    }).addTo(map);
+    // Optional clustering with Cesium
+    viewer.entities.suspendEvents();
+    viewer.entities._entityCollection._entities._array = points.map(p => viewer.entities.add({
+        position: p.position,
+        point: { pixelSize: 10, color: Cesium.Color.ORANGE },
+        properties: p.properties,
+        description: `<b>Region:</b> ${p.properties.region}<br><b>Container Type:</b> ${p.properties.type}`
+    }));
+    viewer.entities.resumeEvents();
+});
 
-    // Add scale in meters only
-    L.control.scale({ metric: true, imperial: false }).addTo(map);
+// Simple search by zone name
+document.getElementById("searchBox").addEventListener("change", function(e) {
+    const name = e.target.value.toLowerCase();
+    const matched = viewer.entities.values.find(ent => ent.name && ent.name.toLowerCase() === name);
+    if(matched) {
+        viewer.flyTo(matched);
+    } else {
+        alert("Zone not found!");
+    }
+});
 
-    // Load Zones layer
-    let zonesLayer;
-    $.getJSON("RamallahZones.json", function(RZ) {
-      zonesLayer = L.geoJson(RZ, {
-        style: feature => ({
-          fillColor: "yellow",
-          fillOpacity: 0.3,
-          color: "yellow",
-          weight: 1,
-          opacity: 0.7
-        }),
-        onEachFeature: function(feature, layer) {
-          layer.bindPopup("Zone: " + feature.properties.NAME_ENGLI + "<br>MAIL_CODE: " + feature.properties.MAIL_CODE);
-        }
-      }).addTo(map);
-    });
-
-    // Marker Cluster for Waste Containers
-    const wasteCluster = L.markerClusterGroup();
-
-    // Load Waste Containers
-    $.getJSON("wasteContainer.json", function(WC) {
-      const markers = L.geoJson(WC, {
-        pointToLayer: function(feature, latlng) {
-          return L.marker(latlng);
-        },
-        onEachFeature: function(feature, layer) {
-          layer.bindPopup(
-            "Region: " + feature.properties.region + "<br>" +
-            "Container Type: " + feature.properties.type
-          );
-        }
-      });
-      wasteCluster.addLayer(markers);
-      map.addLayer(wasteCluster);
-    });
-
-    // Search control by zone name
-    const searchControl = new L.Control.Search({
-      layer: zonesLayer,
-      propertyName: 'NAME_ENGLI',
-      marker: false,
-      moveToLocation: function(latlng, title, map) {
-        map.setView(latlng, 18);
-      }
-    });
-    map.addControl(searchControl);
-
-    // 3D terrain background using Mapbox or similar (example with Mapbox satellite)
-    const mapbox3D = L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=YOUR_MAPBOX_ACCESS_TOKEN', {
-      attribution: '© Mapbox © OpenStreetMap',
-      tileSize: 512,
-      zoomOffset: -1
-    });
-    // Optional: switch base map to 3D view when needed
-    // map.addLayer(mapbox3D);
-  </script>
+</script>
 
 </body>
 </html>
