@@ -1,180 +1,151 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Ramallah Waste Containers 3D</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link href="https://unpkg.com/maplibre-gl@2.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <meta charset="utf-8" />
+  <title>Ramallah Waste Containers</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+  <!-- Leaflet MarkerCluster CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+
   <style>
-    body, html { margin:0; padding:0; height:100%; width:100%; }
-    #map { width:100%; height:100%; }
-    .map-overlay {
+    body {
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
+    #map {
       position: absolute;
-      background: rgba(255,255,255,0.8);
+      width: 100%;
+      top: 0;
+      bottom: 0;
+    }
+    /* Search box style */
+    .search-container {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: white;
       padding: 5px;
       border-radius: 5px;
-      z-index: 9999;
+      box-shadow: 0 0 5px rgba(0,0,0,0.3);
     }
-    #geocoder-container { top:10px; left:10px; width:250px; }
-    #north-arrow { top:80px; left:10px; }
-    #toggle3D { top:10px; right:10px; cursor:pointer; }
-    .upload-image { max-width: 100%; margin-top: 5px; border-radius:5px; }
+    .search-container input {
+      width: 200px;
+      padding: 4px;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div class="map-overlay" id="geocoder-container">
-    <input type="text" id="searchBox" placeholder="ابحث باسم المنطقة...">
-  </div>
-  <div class="map-overlay" id="north-arrow">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/0/09/Compass_rose_simple.svg" width="50">
-  </div>
-  <div class="map-overlay" id="toggle3D">🛰️ تفعيل التجوال الثلاثي</div>
 
-  <script src="https://unpkg.com/maplibre-gl@2.6.1/dist/maplibre-gl.js"></script>
-  <script src="https://unpkg.com/@mapbox/mapbox-gl-geocoder@4.7.0/dist/mapbox-gl-geocoder.min.js"></script>
-  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <!-- Search box -->
+  <div class="search-container">
+    <input type="text" id="zoneSearch" placeholder="Search Zone...">
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
+  <!-- MarkerCluster JS -->
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+  <!-- jQuery -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 
   <script>
-    // إنشاء الخريطة
-    const map = new maplibregl.Map({
-      container: 'map',
-      style: 'https://api.maptiler.com/maps/satellite/style.json?key=pLIV6Yf4t59Pr1wM2d5r',
-      center: [35.2045,31.9045],
-      zoom: 17,
-      pitch: 60, // زاوية التجوال
-      bearing: -17
+    const map = L.map("map", {
+      center: [31.9045, 35.2045],
+      zoom: 17.5,
+      zoomSnap: 0.5
     });
 
-    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+    // Base map with light background for 3D roaming feel
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 20
+    }).addTo(map);
 
-    // مقياس الرسم بالمتر فقط
-    map.addControl(new maplibregl.ScaleControl({ maxWidth: 200, unit: 'metric' }), 'bottom-left');
+    // Add scale (in meters)
+    L.control.scale({metric:true, imperial:false}).addTo(map);
 
-    // البحث
-    const searchInput = document.getElementById('searchBox');
-    searchInput.addEventListener('keyup', function(e){
-      if(e.key === 'Enter') {
-        const query = searchInput.value.toLowerCase();
-        map.getSource('zones') && map.setFilter('zones-fill', ['==', ['downcase', ['get', 'NAME_ENGLI']], query]);
-      }
-    });
+    // Add north arrow
+    const north = L.control({position: "topright"});
+    north.onAdd = function(map) {
+      const div = L.DomUtil.create("div", "north-arrow");
+      div.innerHTML = "&#8593; N";
+      div.style.background = "white";
+      div.style.padding = "5px";
+      div.style.borderRadius = "5px";
+      div.style.boxShadow = "0 0 5px rgba(0,0,0,0.3)";
+      return div;
+    };
+    north.addTo(map);
 
-    // تحميل مناطق رام الله
-    map.on('load', function() {
-      axios.get('RamallahZones.json').then(res => {
-        map.addSource('zones', {
-          type:'geojson',
-          data: res.data
-        });
-        map.addLayer({
-          id:'zones-fill',
-          type:'fill',
-          source:'zones',
-          paint:{ 'fill-color':'yellow', 'fill-opacity':0.3 }
-        });
-        map.addLayer({
-          id:'zones-line',
-          type:'line',
-          source:'zones',
-          paint:{ 'line-color':'yellow', 'line-width':2 }
-        });
-      });
-
-      // تحميل الحاويات
-      axios.get('wasteContainer.json').then(res=>{
-        const features = res.data.features.map(f=>{
+    // Load Zones
+    let zonesLayer;
+    $.getJSON("RamallahZones.json", function(RZ) {
+      zonesLayer = L.geoJson(RZ, {
+        style: function(feature) {
           return {
-            type:'Feature',
-            geometry:f.geometry,
-            properties:{
-              area: f.properties.zone_name || "غير محدد",
-              type: f.properties.container_type || "غير محدد",
-              postal: f.properties.postal_code || "غير محدد"
-            }
+            fillColor: "yellow",
+            fillOpacity: 0.3,
+            color: "yellow",
+            weight: 1,
+            opacity: 0.7
           };
-        });
+        },
+        onEachFeature: function(feature, layer) {
+          layer.on('click', function() {
+            alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE);
+          });
+        }
+      }).addTo(map);
 
-        map.addSource('containers', {
-          type:'geojson',
-          data:{ type:'FeatureCollection', features: features },
-          cluster:true,
-          clusterMaxZoom: 18,
-          clusterRadius:50
-        });
-
-        map.addLayer({
-          id:'clusters',
-          type:'circle',
-          source:'containers',
-          filter:['has','point_count'],
-          paint:{ 'circle-color':'orange', 'circle-radius':20 }
-        });
-
-        map.addLayer({
-          id:'cluster-count',
-          type:'symbol',
-          source:'containers',
-          filter:['has','point_count'],
-          layout:{ 'text-field':'{point_count_abbreviated}','text-size':12 }
-        });
-
-        map.addLayer({
-          id:'unclustered-point',
-          type:'circle',
-          source:'containers',
-          filter:['!has','point_count'],
-          paint:{ 'circle-color':'orange', 'circle-radius':6 }
-        });
-
-        // Popup
-        map.on('click','unclustered-point',function(e){
-          const props = e.features[0].properties;
-          const coordinates = e.features[0].geometry.coordinates.slice();
-          const popupNode = document.createElement('div');
-          popupNode.innerHTML = `
-            <b>اسم المنطقة:</b> ${props.area}<br>
-            <b>نوع الحاوية:</b> ${props.type}<br>
-            <b>الرمز البريدي:</b> ${props.postal}<br>
-            <label>أضف صورة للحاوية:</label>
-            <input type="file" accept="image/*" onchange="showImage(event)">
-            <img id="uploadedImage" class="upload-image" style="display:none;">
-          `;
-          new maplibregl.Popup()
-            .setLngLat(coordinates)
-            .setDOMContent(popupNode)
-            .addTo(map);
+      // Search functionality
+      document.getElementById("zoneSearch").addEventListener("input", function(e){
+        const text = e.target.value.toLowerCase();
+        zonesLayer.eachLayer(function(layer){
+          if(layer.feature.properties.NAME_ENGLI.toLowerCase().includes(text)) {
+            map.fitBounds(layer.getBounds());
+          }
         });
       });
     });
 
-    // دالة عرض الصورة داخل Popup
-    function showImage(event){
-      const file = event.target.files[0];
-      if(file){
-        const reader = new FileReader();
-        reader.onload = function(e){
-          const img = document.getElementById("uploadedImage");
-          img.src = e.target.result;
-          img.style.display = "block";
-        };
-        reader.readAsDataURL(file);
-      }
-    }
-
-    // التجوال الثلاثي (تفعيل/إيقاف)
-    let is3D = true;
-    document.getElementById('toggle3D').addEventListener('click', ()=>{
-      if(is3D){
-        map.easeTo({pitch:0,bearing:0});
-        document.getElementById('toggle3D').innerText="🛰️ تفعيل التجوال الثلاثي";
-        is3D=false;
-      }else{
-        map.easeTo({pitch:60,bearing:-17});
-        document.getElementById('toggle3D').innerText="🗺️ إيقاف التجوال الثلاثي";
-        is3D=true;
-      }
+    // Load Waste Containers and cluster them
+    let wasteCluster = L.markerClusterGroup();
+    $.getJSON("wasteContainer.json", function(WC) {
+      L.geoJson(WC, {
+        pointToLayer: function(feature, latlng) {
+          const marker = L.circleMarker(latlng, {
+            radius: 6,
+            fillColor: "orange",
+            color: "orange",
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+          });
+          marker.bindPopup(
+            "<b>Zone:</b> " + feature.properties.zone +
+            "<br><b>Container Type:</b> " + feature.properties.type
+          );
+          return marker;
+        }
+      }).eachLayer(function(layer){
+        wasteCluster.addLayer(layer);
+      });
+      map.addLayer(wasteCluster);
     });
+
+    // Layer control
+    const overlays = {
+      "Zones": zonesLayer,
+      "Waste Containers": wasteCluster
+    };
+    L.control.layers({}, overlays).addTo(map);
+
   </script>
 </body>
 </html>
