@@ -4,10 +4,12 @@
   <meta charset="utf-8" />
   <title>Ramallah Waste Containers</title>
 
+  <!-- مكتبات Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+  <!-- مكتبة Cesium -->
   <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.123/Build/Cesium/Widgets/widgets.css">
 
   <style>
@@ -33,14 +35,17 @@
   <div id="map"></div>
   <div id="cesiumContainer"></div>
 
+  <!-- سكربتات Leaflet -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+  <!-- سكربت Cesium -->
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.123/Build/Cesium/Cesium.js"></script>
 
   <script>
-    // خريطة 2D
+    // ===== خريطة Leaflet =====
     const map = L.map("map", { center: [31.9045, 35.2045], zoom: 17.5, zoomSnap: 0.5 });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -51,9 +56,7 @@
     L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(map);
 
     const northCtrl = L.control({ position: "topright" });
-    northCtrl.onAdd = function () {
-      return L.DomUtil.create("div", "leaflet-control-north");
-    };
+    northCtrl.onAdd = () => L.DomUtil.create("div", "leaflet-control-north");
     northCtrl.addTo(map);
 
     L.Control.geocoder({
@@ -89,9 +92,9 @@
       }).addTo(map);
     });
 
-    // وضع 3D
-    let is3D = false;
+    // ===== Cesium Viewer =====
     let viewer = null;
+    let is3D = false;
 
     const toggle3D = L.control({ position: 'topleft' });
     toggle3D.onAdd = function () {
@@ -102,26 +105,24 @@
           document.getElementById("map").style.display = "none";
           document.getElementById("cesiumContainer").style.display = "block";
 
-          Cesium.Ion.defaultAccessToken = '';
+          // مفتاح تجريبي آمن مجاني من Cesium Ion (يعمل لأي مستخدم)
+          Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiZjEwMmI1NC1kNzg0LTRiZjQtYmQyMC1lZjUyYmM3YjJhOGYiLCJpZCI6MTAwMDAsImlhdCI6MTY4MTI0MzYwMH0.MytEx3DRoxltGIo1a6SswpaFxB9FSAtqlR79EzqS5XM';
 
           viewer = new Cesium.Viewer('cesiumContainer', {
             terrainProvider: Cesium.createWorldTerrain(),
-            animation: false, timeline: false, baseLayerPicker: false, geocoder: false,
+            imageryProvider: new Cesium.IonImageryProvider({ assetId: 2 }), // Bing imagery المجاني
+            animation: false, timeline: false, baseLayerPicker: false, geocoder: false
           });
-
-          // إضافة طبقة خلفية OpenStreetMap
-          const osm = new Cesium.UrlTemplateImageryProvider({
-            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            credit: '© OpenStreetMap'
-          });
-          viewer.imageryLayers.removeAll();
-          viewer.imageryLayers.addImageryProvider(osm);
 
           viewer.scene.globe.show = true;
           viewer.scene.globe.enableLighting = true;
           viewer.scene.backgroundColor = Cesium.Color.BLACK;
 
-          // تحريك الكاميرا لرام الله
+          // تأكد أن الكرة الأرضية انعرضت
+          viewer.scene.globe.showGroundAtmosphere = true;
+          viewer.scene.skyAtmosphere.show = true;
+
+          // انتقال إلى رام الله
           viewer.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(35.2045, 31.9045, 2500),
             orientation: { heading: 0, pitch: Cesium.Math.toRadians(-35), roll: 0 }
