@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -14,6 +14,7 @@
       height: 100%;
       width: 100%;
     }
+
     #map {
       position: absolute;
       width: 100%;
@@ -21,29 +22,39 @@
       top: 0;
       bottom: 0;
     }
+
     .leaflet-control-scale-line {
       font-size: 12px;
       background: rgba(255, 255, 255, 0.8);
       padding: 3px;
     }
+
     .north-arrow {
       position: absolute;
-      top: 10px;
-      right: 10px;
-      background: rgba(255,255,255,0.8);
+      top: 70px; /* تحت البحث */
+      left: 10px;
+      background: rgba(255, 255, 255, 0.8);
       padding: 5px;
       border-radius: 5px;
       z-index: 9999;
     }
+
     .north-arrow img {
       width: 50px;
       height: auto;
+    }
+
+    .leaflet-control-geocoder {
+      margin-top: 10px;
+      margin-left: 10px;
     }
   </style>
 </head>
 
 <body>
   <div id="map"></div>
+
+  <!-- إشارة الشمال -->
   <div class="north-arrow">
     <img src="https://upload.wikimedia.org/wikipedia/commons/0/09/Compass_rose_simple.svg" alt="North Arrow">
   </div>
@@ -62,33 +73,36 @@
       zoomSnap: 0.5,
     });
 
-    // ✅ خريطة الشوارع العادية من OpenStreetMap
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // ✅ خلفية الأقمار الصناعية من Esri
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
+      attribution: '&copy; Esri, Maxar, Earthstar Geographics'
     }).addTo(map);
 
-    // مقياس الرسم
-    L.control.scale({ position: 'bottomleft' }).addTo(map);
+    // ✅ مقياس الرسم (بالمتر فقط)
+    L.control.scale({
+      position: 'bottomleft',
+      imperial: false // إلغاء القدم
+    }).addTo(map);
 
-    // خانة البحث
+    // ✅ خانة البحث (يسار فوق)
     const geocoder = L.Control.geocoder({
       defaultMarkGeocode: false,
       placeholder: "ابحث باسم المنطقة..."
     })
-      .on('markgeocode', function(e) {
-        const bbox = e.geocode.bbox;
-        const poly = L.polygon([
-          bbox.getSouthEast(),
-          bbox.getNorthEast(),
-          bbox.getNorthWest(),
-          bbox.getSouthWest()
-        ]);
-        map.fitBounds(poly.getBounds());
-      })
-      .addTo(map);
+    .on('markgeocode', function(e) {
+      const bbox = e.geocode.bbox;
+      const poly = L.polygon([
+        bbox.getSouthEast(),
+        bbox.getNorthEast(),
+        bbox.getNorthWest(),
+        bbox.getSouthWest()
+      ]);
+      map.fitBounds(poly.getBounds());
+    })
+    .addTo(map);
 
-    // تحميل بيانات المناطق
+    // ✅ تحميل بيانات المناطق
     let zonesLayer;
     $.getJSON("RamallahZones.json", function(RZ) {
       zonesLayer = L.geoJson(RZ, {
@@ -100,16 +114,18 @@
           opacity: 0.7
         },
         onEachFeature: function(feature, layer) {
-          layer.bindPopup("<b>Zone:</b> " + feature.properties.NAME_ENGLI + "<br><b>Mail Code:</b> " + feature.properties.MAIL_CODE);
+          layer.bindPopup(
+            "<b>Zone:</b> " + feature.properties.NAME_ENGLI +
+            "<br><b>Mail Code:</b> " + feature.properties.MAIL_CODE
+          );
         }
       }).addTo(map);
     });
 
-    // تحميل بيانات الحاويات مع clustering
-    let wasteContainersLayer;
+    // ✅ تحميل بيانات الحاويات مع clustering
     const markers = L.markerClusterGroup();
     $.getJSON("wasteContainer.json", function(WC) {
-      wasteContainersLayer = L.geoJson(WC, {
+      const wasteContainersLayer = L.geoJson(WC, {
         pointToLayer: function(feature, latlng) {
           const marker = L.circleMarker(latlng, {
             radius: 6,
@@ -131,8 +147,8 @@
       map.addLayer(markers);
     });
 
-    // وضع التجوال الثلاثي الأبعاد
-    const earthControl = L.control.earth({
+    // ✅ وضع التجوال الثلاثي الأبعاد (يمين فوق)
+    L.control.earth({
       position: 'topright',
       title: "تجوال ثلاثي الأبعاد"
     }).addTo(map);
