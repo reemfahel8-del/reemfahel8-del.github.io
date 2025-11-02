@@ -1,348 +1,176 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar">
 <head>
   <meta charset="utf-8" />
-  <title>Ramallah Waste Containers</title>
+  <title>Ramallah Waste Containers 2D/3D</title>
 
-  <!-- Leaflet + plugins CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+
+  <!-- Cesium CSS -->
+  <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.123/Build/Cesium/Widgets/widgets.css" />
 
   <style>
-    /* keep original layout & sizes */
-    body { margin: 0; height: 100%; width: 100%; }
-    #map { position: absolute; width: 100%; height: 100%; top: 0; bottom: 0; }
+    body { margin: 0; height: 100%; width: 100%; overflow: hidden; }
+    #map, #cesiumContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    #cesiumContainer { display: none; }
 
-    /* scale styling */
-    .leaflet-control-scale-line { font-size: 12px; background: rgba(255,255,255,0.85); padding: 3px; }
-
-    /* north arrow */
-    .north-arrow { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.9); padding: 6px; border-radius: 6px; z-index: 9999; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
-    .north-arrow img { width: 44px; height: auto; display: block; }
-
-    /* tour control buttons */
-    .tour-controls { position: absolute; top: 70px; right: 10px; z-index: 9999; display: flex; flex-direction: column; gap: 6px; }
-    .tour-controls button { background: white; border: 1px solid #ccc; padding: 6px 8px; border-radius: 4px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
-
-    /* small search input container override to match Arabic placeholder */
-    .leaflet-control-geocoder-form input { direction: rtl; }
-
-    /* tilt class to simulate a 3D look during the tour */
-    .map-tilt {
-      transform-origin: 50% 30%;
-      transition: transform 0.8s ease;
-      /* perspective & rotation to create a "3D-ish" feeling */
-      transform: perspective(900px) rotateX(12deg) translateY(-18px);
-      /* slightly increase z-index so tilt appears above UI */
-      z-index: 1;
+    .leaflet-control-north {
+      background-image: url('https://upload.wikimedia.org/wikipedia/commons/6/6b/Compass_Rose_North.svg');
+      background-repeat: no-repeat;
+      background-size: contain;
+      width: 60px; height: 60px;
     }
 
-    /* ensure leaflet internal canvas still visible after transform */
-    .leaflet-container { will-change: transform; }
+    .leaflet-control-3d-toggle {
+      background: white; border-radius: 8px; padding: 6px 10px;
+      cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      font-weight: bold;
+    }
   </style>
 </head>
-
 <body>
   <div id="map"></div>
+  <div id="cesiumContainer"></div>
 
-  <!-- North arrow -->
-  <div class="north-arrow" title="الشمال">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/0/09/Compass_rose_simple.svg" alt="North arrow">
-  </div>
-
-  <!-- Tour buttons -->
-  <div class="tour-controls">
-    <button id="startTourBtn">بدء التجوال ثلاثي الأبعاد</button>
-    <button id="stopTourBtn" disabled>إيقاف التجوال</button>
-  </div>
-
-  <!-- Leaflet + plugins JS -->
-  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/jquery@3.5.1/dist/jquery.min.js"></script>
-  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+  <!-- JS Libraries -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.123/Build/Cesium/Cesium.js"></script>
 
   <script>
-    // ------------------------------
-    // Basic map setup (kept structure)
-    // ------------------------------
-    const map = L.map("map", {
-      center: [31.9045, 35.2045],
-      zoom: 17.5,
-      zoomSnap: 0.5,
-    });
+    // ===== خريطة 2D =====
+    const map = L.map("map", { center: [31.9045, 35.2045], zoom: 17.5 });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 20
+      attribution: '&copy; OpenStreetMap & CARTO',
+      subdomains: 'abcd', maxZoom: 20
     }).addTo(map);
 
-    // scale control
-    L.control.scale({ position: 'bottomleft' }).addTo(map);
+    L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(map);
 
-    // geocoder (search by name)
-    const geocoder = L.Control.geocoder({
+    const northCtrl = L.control({ position: "topright" });
+    northCtrl.onAdd = () => L.DomUtil.create("div", "leaflet-control-north");
+    northCtrl.addTo(map);
+
+    L.Control.geocoder({
       defaultMarkGeocode: false,
-      placeholder: "ابحث باسم المنطقة..."
-    })
-    .on('markgeocode', function(e) {
-      const bbox = e.geocode.bbox;
-      const bounds = L.latLngBounds([
-        [bbox.getSouthWest().lat, bbox.getSouthWest().lng],
-        [bbox.getNorthEast().lat, bbox.getNorthEast().lng]
-      ]);
-      map.fitBounds(bounds, { maxZoom: 18 });
-    })
-    .addTo(map);
+      placeholder: "ابحث عن منطقة...",
+      position: "topleft"
+    }).on('markgeocode', e => map.fitBounds(e.geocode.bbox)).addTo(map);
 
-    // Layer containers to avoid reference errors
-    let zonesLayer = L.layerGroup();
-    let wasteContainersLayer = L.layerGroup();
+    // ===== Cluster للحاويات =====
+    const wasteCluster = L.markerClusterGroup();
+    const wasteLayer = L.geoJson(null, {
+      pointToLayer: (feature, latlng) => {
+        const marker = L.circleMarker(latlng, {
+          radius: 6, fillColor: "orange", color: "orange",
+          weight: 1, opacity: 1, fillOpacity: 0.8
+        });
+        marker.bindPopup(`<b>المنطقة:</b> ${feature.properties.ZoneName || "غير محددة"}<br>
+                          <b>نوع الحاوية:</b> ${feature.properties.Type || "غير معروف"}`);
+        return marker;
+      }
+    });
+    wasteCluster.addLayer(wasteLayer);
+    map.addLayer(wasteCluster);
 
-    // Add layer control (will be updated later)
-    const baseLayers = {};
-    const overlays = {
-      "Zones": zonesLayer,
-      "Waste Containers": wasteContainersLayer
+    $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/reemfahel8-del.github.io/main/wasteContainer.json", function(WC) {
+      wasteLayer.addData(WC);
+    });
+
+    // ===== مناطق رام الله =====
+    const zonesLayer = L.geoJson(null, {
+      style: () => ({ fillColor: "yellow", fillOpacity: 0.3, color: "yellow", weight: 1.0 }),
+      onEachFeature: (feature, layer) => {
+        layer.on('click', () => alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE));
+      }
+    }).addTo(map);
+
+    $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/reemfahel8-del.github.io/main/RamallahZones.json", function(RZ) {
+      zonesLayer.addData(RZ);
+    });
+
+    // ===== وضع 3D عبر Cesium =====
+    let viewer = null;
+    let is3D = false;
+
+    const toggle3D = L.control({ position: 'topleft' });
+    toggle3D.onAdd = function () {
+      const div = L.DomUtil.create('div', 'leaflet-control-3d-toggle');
+      div.innerHTML = '🪐 تفعيل 3D';
+      div.onclick = function () {
+        if (!is3D) {
+          document.getElementById("map").style.display = "none";
+          document.getElementById("cesiumContainer").style.display = "block";
+
+          Cesium.Ion.defaultAccessToken = '';
+
+          viewer = new Cesium.Viewer('cesiumContainer', {
+            animation: false,
+            timeline: false,
+            baseLayerPicker: false,
+            geocoder: false
+          });
+
+          viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            credit: '© OpenStreetMap'
+          }));
+
+          viewer.terrainProvider = Cesium.createWorldTerrain();
+          viewer.scene.globe.show = true;
+          viewer.scene.globe.enableLighting = true;
+          viewer.scene.backgroundColor = Cesium.Color.BLACK;
+          viewer.scene.skyAtmosphere.show = true;
+          viewer.scene.globe.showGroundAtmosphere = true;
+
+          // ===== إضافة الحاويات في Cesium =====
+          $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/reemfahel8-del.github.io/main/wasteContainer.json", function(WC) {
+            WC.features.forEach(f => {
+              viewer.entities.add({
+                name: f.properties.ZoneName,
+                position: Cesium.Cartesian3.fromDegrees(f.geometry.coordinates[0], f.geometry.coordinates[1], 5),
+                point: { pixelSize: 10, color: Cesium.Color.ORANGE },
+                description: `<b>المنطقة:</b> ${f.properties.ZoneName}<br><b>نوع الحاوية:</b> ${f.properties.Type}`
+              });
+            });
+          });
+
+          // ===== إضافة المناطق في Cesium =====
+          $.getJSON("https://raw.githubusercontent.com/reemfahel8-del/reemfahel8-del.github.io/main/RamallahZones.json", function(RZ) {
+            RZ.features.forEach(f => {
+              const hierarchy = f.geometry.coordinates[0].map(c => Cesium.Cartesian3.fromDegrees(c[0], c[1], 0));
+              viewer.entities.add({
+                name: f.properties.NAME_ENGLI,
+                polygon: { hierarchy: hierarchy, material: Cesium.Color.YELLOW.withAlpha(0.3), outline: true, outlineColor: Cesium.Color.YELLOW }
+              });
+            });
+          });
+
+          viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(35.2045, 31.9045, 2500),
+            orientation: { heading: 0, pitch: Cesium.Math.toRadians(-35), roll: 0 }
+          });
+
+          div.innerHTML = '🌍 العودة إلى 2D';
+          is3D = true;
+        } else {
+          document.getElementById("cesiumContainer").style.display = "none";
+          document.getElementById("map").style.display = "block";
+          if (viewer) { viewer.destroy(); viewer = null; }
+          div.innerHTML = '🪐 تفعيل 3D';
+          is3D = false;
+        }
+      };
+      return div;
     };
-    const layerControl = L.control.layers(baseLayers, overlays).addTo(map);
-
-    // We'll use a marker cluster group for containers
-    const markersCluster = L.markerClusterGroup();
-
-    // Store tour points (latlngs) built from waste container points
-    let tourPoints = [];
-
-    // Flag for tour running
-    let tourRunning = false;
-    let stopRequested = false;
-
-    // Helper: promise that resolves after moveend or after timeout (safety)
-    function flyToPromise(latlng, zoom, durationSec) {
-      return new Promise((resolve) => {
-        let done = false;
-        function finish() {
-          if (done) return;
-          done = true;
-          map.off('moveend', finish);
-          clearTimeout(timer);
-          resolve();
-        }
-        // listen for moveend
-        map.once('moveend', finish);
-        // safety timeout in case moveend doesn't fire
-        const timer = setTimeout(finish, (durationSec || 3) * 1000 + 200);
-        // perform the fly / pan
-        map.flyTo(latlng, zoom, { duration: durationSec || 3 });
-      });
-    }
-
-    // Add JSON data (zones + containers)
-    // NOTE: files must be in same folder: "RamallahZones.json" and "wasteContainer.json"
-    $.getJSON("RamallahZones.json", function(RZ) {
-      // clear existing
-      zonesLayer.clearLayers();
-      const z = L.geoJson(RZ, {
-        style: function(feature) {
-          return {
-            fillColor: "yellow",
-            fillOpacity: 0.28,
-            color: "yellow",
-            weight: 1.0,
-            opacity: 0.7
-          };
-        },
-        onEachFeature: function(feature, layer) {
-          const name = feature.properties && (feature.properties.NAME_ENGLI || feature.properties.NAME || "غير محدد");
-          const mail = feature.properties && (feature.properties.MAIL_CODE || "");
-          layer.bindPopup("<b>Zone:</b> " + name + "<br><b>Mail Code:</b> " + mail);
-          layer.on('click', function() {
-            layer.openPopup();
-          });
-        }
-      });
-      zonesLayer.addLayer(z);
-      // refresh layer control entry
-      layerControl.remove(); // remove and re-add to update references
-      L.control.layers(baseLayers, { "Zones": zonesLayer, "Waste Containers": wasteContainersLayer }).addTo(map);
-      // add to map by default
-      if (!map.hasLayer(zonesLayer)) zonesLayer.addTo(map);
-    });
-
-    // Load waste containers and cluster them; also prepare tourPoints for fly tour
-    $.getJSON("wasteContainer.json", function(WC) {
-      wasteContainersLayer.clearLayers();
-      markersCluster.clearLayers();
-      tourPoints = []; // reset
-
-      const geoJsonLayer = L.geoJson(WC, {
-        pointToLayer: function(feature, latlng) {
-          // circle marker for visual + convert to marker for cluster compatibility
-          const marker = L.marker(latlng, {
-            icon: L.divIcon({
-              className: '',
-              html: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" fill="orange" stroke="orange"/></svg>',
-              iconSize: [18, 18],
-              iconAnchor: [9, 9]
-            })
-          });
-
-          // popup content
-          const popupContent = `
-            <b>اسم المنطقة:</b> ${feature.properties?.Area || feature.properties?.zone || "غير محدد"}<br>
-            <b>نوع الحاوية:</b> ${feature.properties?.Type || feature.properties?.type || "غير محدد"}
-          `;
-          marker.bindPopup(popupContent);
-
-          // push to tourPoints (simple sampling to avoid massive tours)
-          tourPoints.push([latlng.lat, latlng.lng]);
-
-          return marker;
-        }
-      });
-
-      // add GeoJSON markers into the cluster group
-      markersCluster.addLayer(geoJsonLayer);
-      wasteContainersLayer.addLayer(markersCluster);
-
-      // add to map and layer control
-      if (!map.hasLayer(wasteContainersLayer)) map.addLayer(wasteContainersLayer);
-      layerControl.remove();
-      L.control.layers(baseLayers, { "Zones": zonesLayer, "Waste Containers": wasteContainersLayer }).addTo(map);
-
-      // Optionally, cluster hotspots detection: highlight clusters that have many markers
-      // We'll add an overlay layer showing cluster circles for clusters with count > threshold
-      // (MarkerCluster already displays cluster icons — user requested cluster display and it's provided by markercluster)
-      // For convenience, ensure some unique behavior: when clicking a cluster, zoom into it (default behavior).
-    });
-
-    // ------------------------------
-    // 3D-style "fly tour" implementation
-    // ------------------------------
-    // We'll simulate a 3D tour by:
-    // 1) smoothly flying between sampled container points (map.flyTo)
-    // 2) temporarily applying a CSS tilt transform to the map container to create depth
-    // 3) optionally changing zoom levels while flying
-    //
-    // Controls: Start / Stop buttons.
-    const startBtn = document.getElementById('startTourBtn');
-    const stopBtn = document.getElementById('stopTourBtn');
-
-    // sample tour points to reasonable number and dedupe
-    function sampleTourPoints(allPoints, maxPoints = 12) {
-      if (!allPoints || allPoints.length === 0) return [];
-      // dedupe by rounding lat/lng to 5 decimals
-      const seen = new Set();
-      const unique = [];
-      for (const p of allPoints) {
-        const key = `${p[0].toFixed(5)},${p[1].toFixed(5)}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          unique.push(p);
-        }
-      }
-      // If too many, pick approximately evenly spaced samples
-      if (unique.length <= maxPoints) return unique;
-      const step = Math.max(1, Math.floor(unique.length / maxPoints));
-      const sampled = [];
-      for (let i = 0; i < unique.length; i += step) {
-        sampled.push(unique[i]);
-        if (sampled.length >= maxPoints) break;
-      }
-      // ensure last point included (return to center)
-      if (sampled.length < maxPoints && unique.length > 0) sampled.push(unique[unique.length - 1]);
-      return sampled;
-    }
-
-    async function startFlyTour() {
-      if (tourRunning) return;
-      // gather points (tourPoints array should be filled when wasteContainer.json loaded)
-      if (!tourPoints || tourPoints.length === 0) {
-        alert("بيانات الحاويات لم تُحمّل بعد أو لا تحتوي نقاط. تأكدي من وجود ملف wasteContainer.json وبأنه يتضمن نقاطاً.");
-        return;
-      }
-
-      // prepare sampled sequence
-      const sequence = sampleTourPoints(tourPoints, 12);
-      // optionally add map center at beginning and end for nicer entry/exit
-      sequence.unshift([map.getCenter().lat, map.getCenter().lng]);
-      sequence.push([map.getCenter().lat, map.getCenter().lng]);
-
-      tourRunning = true;
-      stopRequested = false;
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
-
-      // apply tilt (3D effect) by adding class to .leaflet-container element
-      const container = document.querySelector('.leaflet-container');
-      if (container) {
-        container.classList.add('map-tilt');
-      }
-
-      // iterate through sequence and flyTo each point
-      try {
-        for (let i = 0; i < sequence.length; i++) {
-          if (stopRequested) break;
-          const pt = sequence[i];
-          // vary zoom slightly to create sense of rising/falling
-          const zoom = 16 + (i % 3); // 16..18 variation
-          // flight duration 3.2s normally, longer for longer hops
-          const duration = 3.2;
-          await flyToPromise(pt, zoom, duration);
-          // open a popup if there is a marker at this exact coord (best effort)
-          if (stopRequested) break;
-          // tiny pause between steps
-          await new Promise(r => setTimeout(r, 450));
-        }
-      } finally {
-        // cleanup: remove tilt and reset UI buttons
-        if (container) {
-          container.classList.remove('map-tilt');
-        }
-        tourRunning = false;
-        stopRequested = false;
-        startBtn.disabled = false;
-        stopBtn.disabled = true;
-      }
-    }
-
-    // Stop the tour gracefully
-    function stopFlyTour() {
-      if (!tourRunning) return;
-      stopRequested = true;
-      // also stop any ongoing animation by immediately setting view (this cancels flyTo)
-      // setView to current center to cancel
-      const c = map.getCenter();
-      map.setView(c, map.getZoom(), { animate: false });
-      // remove tilt immediately
-      const container = document.querySelector('.leaflet-container');
-      if (container) container.classList.remove('map-tilt');
-      tourRunning = false;
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-    }
-
-    // attach event handlers
-    startBtn.addEventListener('click', () => {
-      startFlyTour();
-    });
-    stopBtn.addEventListener('click', () => {
-      stopFlyTour();
-    });
-
-    // Ensure layer control layers reflect the actual groups (for reloading)
-    // Add layers to map by default
-    zonesLayer.addTo(map);
-    wasteContainersLayer.addTo(map);
-
-    // Optional: when user clicks a cluster, expand/zoom (markercluster does this by default).
-    // Optional: when clicking a single container marker, popup shows properties (already bound).
-
-    // Note: if you want the tour to follow zone centroids instead of container points,
-    // we can compute centroids from RamallahZones.json and use them as tourPoints instead.
+    toggle3D.addTo(map);
   </script>
 </body>
 </html>
