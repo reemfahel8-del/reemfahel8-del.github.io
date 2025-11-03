@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="en">
 
 <head>
@@ -24,7 +24,7 @@
       bottom: 0;
     }
 
-    /* === ADDITION ===: مربع البحث */
+    /* مربع البحث */
     .leaflet-control-search {
       position: absolute !important;
       right: 10px !important;
@@ -48,8 +48,6 @@
 
 <body>
   <div id="map"></div>
-
-  <!-- === ADDITION ===: زر إضافة صورة -->
   <input type="file" id="imageUpload" accept="image/*" title="Upload container image">
 
   <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
@@ -73,22 +71,22 @@
       maxZoom: 20
     }).addTo(map);
 
-    // === ADDITION ===: مقياس الرسم
+    // مقياس الرسم
     L.control.scale({ metric: true, imperial: false, position: 'bottomleft' }).addTo(map);
 
-    // === ADDITION ===: طبقة لتجميع الحاويات
+    // طبقة تجميع الحاويات
     const markers = L.markerClusterGroup();
 
-    // === ADDITION ===: متغير لحساب المسافات والزمن
     const workerSpeed = 1.4; // m/s ≈ 5 km/h
-
     let lastContainer = null;
+
+    // === ADDITION FIX ===: متغير لتخزين المسار الحالي
+    let currentLine = null;
 
     // تحميل بيانات الحاويات
     $.getJSON("wasteContainer.json", function (WC) {
       const wasteContainersLayer = L.geoJson(WC, {
         pointToLayer: function (feature, latlng) {
-          // === ADDITION ===: اللون حسب الامتلاء
           let fill = "green";
           const f = feature.properties.fillLevel;
           if (f > 80) fill = "red";
@@ -103,20 +101,32 @@
             fillOpacity: 0.8
           });
 
-          // === ADDITION ===: popup للحاوية
           marker.bindPopup(`
             <b>المنطقة:</b> ${feature.properties.zoneName || "غير محددة"}<br>
             <b>النوع:</b> ${feature.properties.type || "غير معروف"}<br>
             <b>نسبة الامتلاء:</b> ${f || "غير معروف"}%<br>
           `);
 
-          // === ADDITION ===: حساب الزمن من آخر حاوية
+          // حساب الزمن + رسم المسار
           marker.on('click', function () {
             if (lastContainer) {
-              const dist = map.distance(lastContainer.getLatLng(), latlng); // بالمتر
-              const time = dist / workerSpeed; // بالثواني
+              const start = lastContainer.getLatLng();
+              const end = latlng;
+              const dist = map.distance(start, end);
+              const time = dist / workerSpeed;
               const min = Math.floor(time / 60);
               const sec = Math.floor(time % 60);
+
+              // === ADDITION FIX ===: إزالة أي خط سابق
+              if (currentLine) map.removeLayer(currentLine);
+
+              // === ADDITION FIX ===: رسم خط جديد بين النقطتين
+              currentLine = L.polyline([start, end], {
+                color: 'lime',
+                weight: 3,
+                dashArray: '5,5'
+              }).addTo(map);
+
               alert(`المسافة بين الحاويتين: ${dist.toFixed(2)} متر\nالزمن اللازم للوصول: ${min} دقيقة و ${sec} ثانية`);
             }
             lastContainer = marker;
@@ -128,23 +138,12 @@
       });
 
       map.addLayer(markers);
-
-      // === ADDITION ===: البحث عن المنطقة بالاسم
-      const searchControl = new L.Control.Search({
-        layer: wasteContainersLayer,
-        propertyName: 'zoneName',
-        zoom: 18,
-        marker: false,
-        moveToLocation: function (latlng, title, map) {
-          map.setView(latlng, 18);
-        }
-      });
-      map.addControl(searchControl);
     });
 
-    // تحميل بيانات المناطق
+    // === ADDITION FIX ===: البحث عن المنطقة (من ملف RamallahZones.json فقط)
+    let zonesLayer;
     $.getJSON("RamallahZones.json", function (RZ) {
-      const zonesLayer = L.geoJson(RZ, {
+      zonesLayer = L.geoJson(RZ, {
         style: function (feature) {
           return {
             fillColor: "yellow",
@@ -155,15 +154,26 @@
           };
         },
         onEachFeature: function (feature, layer) {
-          layer.on('click', function () {
-            alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE);
-          });
+          layer.bindPopup(`<b>${feature.properties.NAME_ENGLI}</b>`);
+        }
+      }).addTo(map);
+
+      // تفعيل البحث على أسماء المناطق فقط
+      const searchControl = new L.Control.Search({
+        layer: zonesLayer,
+        propertyName: 'NAME_ENGLI',
+        textPlaceholder: 'ابحث عن منطقة...',
+        zoom: 17,
+        marker: false,
+        moveToLocation: function (latlng, title, map) {
+          map.fitBounds(latlng.layer.getBounds());
+          latlng.layer.openPopup();
         }
       });
-      zonesLayer.addTo(map);
+      map.addControl(searchControl);
     });
 
-    // === ADDITION ===: تحديد موقع المستخدم
+    // تحديد موقع المستخدم
     map.locate({ setView: false, watch: false })
       .on('locationfound', function (e) {
         L.circleMarker(e.latlng, {
@@ -175,7 +185,7 @@
         }).addTo(map).bindPopup("موقعك الحالي").openPopup();
       });
 
-    // === ADDITION ===: تحميل صورة من الميدان
+    // تحميل صورة من الميدان
     document.getElementById("imageUpload").addEventListener("change", function (event) {
       const file = event.target.files[0];
       if (file) {
