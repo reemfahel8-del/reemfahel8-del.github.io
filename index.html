@@ -4,14 +4,12 @@
   <meta charset="utf-8" />
   <title>Ramallah Waste Containers</title>
 
-  <!-- Leaflet core CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
-  <!-- Leaflet marker cluster CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-
-  <!-- Leaflet geocoder CSS -->
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+  <!-- Marker Cluster CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+  <!-- Leaflet Search CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
 
   <style>
@@ -22,124 +20,118 @@
     }
     #map {
       position: absolute;
+      width: 100%;
       top: 0;
       bottom: 0;
-      width: 100%;
     }
     .leaflet-control-geocoder {
-      margin-top: 10px;
-      margin-right: 10px;
+      position: absolute !important;
+      right: 10px !important;
+      top: 10px !important;
+      z-index: 1000;
     }
   </style>
 </head>
-
 <body>
   <div id="map"></div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- jQuery -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
-
-  <!-- Marker cluster plugin -->
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-
-  <!-- Geocoder plugin -->
+  <!-- Libraries -->
+  <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-
-  <!-- Leaflet globe (3D mode) -->
-  <script src="https://unpkg.com/leaflet.globe.min.js"></script>
+  <script src="https://unpkg.com/leaflet-tiltview/dist/leaflet-tiltview.min.js"></script>
 
   <script>
-    // خريطة الخيارات الأساسية
     const mapOptions = {
       zoomSnap: 0.5,
       center: [31.9045, 35.2045],
-      zoom: 16
+      zoom: 17.5
     };
 
     const map = L.map("map", mapOptions);
 
-    // خريطة الأساس
-    const baseMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    // Basemap
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> | &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors ' +
+        '&copy; <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: 'abcd',
       maxZoom: 20
     }).addTo(map);
 
-    // مقياس الرسم بالمتر
+    // Scale in meters
     L.control.scale({ metric: true, imperial: false }).addTo(map);
 
-    // خانة البحث باسم المنطقة (Geocoder)
+    // Add search box on the right
     const geocoder = L.Control.geocoder({
-      defaultMarkGeocode: true,
-      placeholder: 'ابحث عن اسم المنطقة...',
-    }).addTo(map);
+      defaultMarkGeocode: false
+    })
+      .on('markgeocode', function(e) {
+        const bbox = e.geocode.bbox;
+        const poly = L.polygon([
+          bbox.getSouthEast(),
+          bbox.getNorthEast(),
+          bbox.getNorthWest(),
+          bbox.getSouthWest()
+        ]).addTo(map);
+        map.fitBounds(poly.getBounds());
+      })
+      .addTo(map);
 
-    // تعريف الطبقات
-    let zonesLayer;
-    let wasteContainersLayer;
+    // Cluster group for containers
+    const markers = L.markerClusterGroup();
 
-    // تحميل مناطق رام الله
-    $.getJSON("RamallahZones.json", function (RZ) {
-      zonesLayer = L.geoJson(RZ, {
-        style: {
-          fillColor: "yellow",
-          fillOpacity: 0.3,
-          color: "yellow",
-          weight: 1.0,
-          opacity: 0.7
-        },
-        onEachFeature: function (feature, layer) {
-          layer.bindPopup(
-            "<b>اسم المنطقة:</b> " + feature.properties.NAME_ENGLI +
-            "<br><b>الكود:</b> " + feature.properties.MAIL_CODE
-          );
-        }
-      }).addTo(map);
-    });
+    let zonesLayer, wasteContainersLayer;
 
-    // تحميل بيانات الحاويات مع التجميع (Clustering)
-    $.getJSON("wasteContainer.json", function (WC) {
-      const markers = L.markerClusterGroup();
-
+    // Load Waste Containers
+    $.getJSON("wasteContainer.json", function(WC) {
       wasteContainersLayer = L.geoJson(WC, {
-        pointToLayer: function (feature, latlng) {
-          const marker = L.circleMarker(latlng, {
-            radius: 6,
-            fillColor: "orange",
-            color: "#ffb347",
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.9
-          });
-
+        pointToLayer: function(feature, latlng) {
+          const marker = L.marker(latlng);
+          const props = feature.properties;
           marker.bindPopup(
-            "<b>اسم المنطقة:</b> " + feature.properties.Area +
-            "<br><b>نوع الحاوية:</b> " + feature.properties.Type
+            "<b>Zone:</b> " + (props.zone_name || "غير محدد") + "<br>" +
+            "<b>Type:</b> " + (props.container_type || "غير محدد") + "<br>" +
+            "<b>Postal Code:</b> " + (props.zip_code || "غير محدد")
           );
-
           return marker;
         }
       });
-
       markers.addLayer(wasteContainersLayer);
       map.addLayer(markers);
     });
 
-    // التحكم في الطبقات
-    const baseLayers = { "خريطة أساسية": baseMap };
-    const overlays = {
-      "مناطق رام الله": zonesLayer,
-      "حاويات النفايات": wasteContainersLayer
-    };
+    // Load Zones
+    $.getJSON("RamallahZones.json", function(RZ) {
+      zonesLayer = L.geoJson(RZ, {
+        style: function(feature) {
+          return {
+            fillColor: "yellow",
+            fillOpacity: 0.3,
+            color: "yellow",
+            weight: 1,
+            opacity: 0.7
+          };
+        },
+        onEachFeature: function(feature, layer) {
+          layer.on("click", function() {
+            alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE);
+          });
+        }
+      }).addTo(map);
+    });
 
+    // Layer control
+    const baseLayers = {};
+    const overlays = {
+      "Zones": zonesLayer,
+      "Waste Containers": markers
+    };
     L.control.layers(baseLayers, overlays).addTo(map);
 
-    // وضع التجوال الثلاثي الأبعاد (3D)
-    L.globe(map);
+    // Enable 3D perspective (tilt view)
+    L.tiltView().addTo(map);
   </script>
 </body>
 </html>
