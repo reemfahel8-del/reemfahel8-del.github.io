@@ -1,130 +1,104 @@
 <!DOCTYPE html>
-
 <html lang="en">
 
 <head>
   <meta charset="utf-8" />
-  <title>Ramallah Waste Containers 3D</title>
+  <title>Ramallah Waste Containers</title>
 
   <!-- Leaflet CSS -->
-
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- MarkerCluster CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+  <!-- Geocoder (search box) CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
 
   <style>
-    html, body {
-      height: 100%;
+    body {
       margin: 0;
-      padding: 0;
+      height: 100%;
+      width: 100%;
     }
 
     #map {
+      position: absolute;
       width: 100%;
       height: 100%;
     }
 
+    /* وضع صندوق البحث على اليمين */
     .leaflet-control-geocoder {
-      margin-top: 10px;
-      margin-right: 10px;
+      right: 10px !important;
+      left: auto !important;
+      top: 10px !important;
     }
   </style>
-
 </head>
 
 <body>
   <div id="map"></div>
 
-  <!-- Leaflet JS -->
-
+  <!-- Libraries -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+  <script src="https://unpkg.com/leaflet-gesture-handling/dist/leaflet-gesture-handling.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 
-  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-
-  <!-- Leaflet 3D plugin (Cesium or similar) -->
-
-  <script src="https://unpkg.com/leaflet-cesium/Leaflet.Cesium.min.js"></script>
-
   <script>
-    // Map initialization
-    const map = L.map("map", {
+    // إعداد الخريطة
+    const map = L.map('map', {
       center: [31.9045, 35.2045],
-      zoom: 17.5,
-      zoomSnap: 0.5
+      zoom: 17,
+      zoomSnap: 0.5,
+      gestureHandling: true
     });
 
-    // Base map
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      subdomains: 'abcd',
-      maxZoom: 20
+    // إضافة خلفية مناسبة للتجوال الثلاثي الأبعاد
+    const esri3D = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles © Esri &mdash; Source: Esri, Earthstar Geographics'
     }).addTo(map);
 
-    // Scale control (meters only)
+    // إضافة مقياس الرسم بالمتر فقط
     L.control.scale({ metric: true, imperial: false }).addTo(map);
 
-    // Search control
-    L.Control.geocoder({
-      defaultMarkGeocode: false,
-      placeholder: 'Search by Zone Name'
+    // تفعيل صندوق البحث (Geocoder)
+    const geocoder = L.Control.geocoder({
+      defaultMarkGeocode: true
     }).addTo(map);
 
-    // Cluster group for waste containers
-    const wasteCluster = L.markerClusterGroup();
-
-    $.getJSON("wasteContainer.json", function(WC) {
-      L.geoJson(WC, {
-        pointToLayer: function(feature, latlng) {
-          return L.marker(latlng);
-        },
-        onEachFeature: function(feature, layer) {
-          let popupContent = "<b>Zone:</b> " + feature.properties.Zone + "<br>" +
-                             "<b>Container Type:</b> " + feature.properties.Type;
-          layer.bindPopup(popupContent);
-        }
-      }).addTo(wasteCluster);
-      map.addLayer(wasteCluster);
-    });
-
-    // Zones layer
+    // تحميل طبقة المناطق
     let zonesLayer;
-    $.getJSON("RamallahZones.json", function(RZ) {
+    $.getJSON("RamallahZones.json", function (RZ) {
       zonesLayer = L.geoJson(RZ, {
-        style: {
-          fillColor: "yellow",
-          fillOpacity: 0.3,
-          color: "yellow",
-          weight: 1,
-          opacity: 0.7
+        style: function (feature) {
+          return {
+            fillColor: "yellow",
+            fillOpacity: 0.3,
+            color: "yellow",
+            weight: 1,
+            opacity: 0.7
+          };
         },
-        onEachFeature: function(feature, layer) {
-          layer.on('click', function(e) {
-            alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE);
-          });
+        onEachFeature: function (feature, layer) {
+          layer.bindPopup(
+            "<b>اسم المنطقة:</b> " + (feature.properties.NAME_ENGLI || "غير محدد") +
+            "<br><b>الرمز البريدي:</b> " + (feature.properties.MAIL_CODE || "غير محدد")
+          );
         }
       }).addTo(map);
     });
 
-    // Layer control
-    const overlays = {
-      "Zones": zonesLayer,
-      "Waste Containers": wasteCluster
-    };
-    L.control.layers({}, overlays).addTo(map);
+    // تحميل الحاويات مع خاصية الكلستر
+    $.getJSON("wasteContainer.json", function (WC) {
+      const markers = L.markerClusterGroup();
 
-    // 3D view (Cesium)
-    const cesium = new L.Cesium(map, {
-      imageryProvider: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      terrainProvider: "https://assets.agi.com/stk-terrain/world"
-    });
-    cesium.enable();
-  </script>
-
-</body>
-
-</html>
+      const wasteContainersLayer = L.geoJson(WC, {
+        pointToLayer: function (feature, latlng) {
+          return L.marker(latlng);
+        },
+        onEachFeature: function (feature, layer) {
+          layer.bindPopup(
+            "<b>اسم المنطقة:</b> " + (feature.properties.zone_name || "غير محدد") +
+            "<br><b>نوع الحاوية:</b> " + (feature.properties.type || "غير محدد") +
+            "<br><b>الرمز البريدي:</b> " + (
