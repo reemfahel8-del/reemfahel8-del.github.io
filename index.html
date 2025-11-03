@@ -1,260 +1,155 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="en">
+
 <head>
   <meta charset="utf-8" />
-  <title>Ramallah Waste Containers - 2D / 3D</title>
+  <title>Ramallah Waste Containers</title>
 
   <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <!-- MarkerCluster CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
-  <!-- Leaflet Geocoder CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+
+  <!-- Leaflet MarkerCluster CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+
+  <!-- Leaflet Search CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
 
+  <!-- Style -->
   <style>
-    html,body { height:100%; margin:0; }
-    #map { position: absolute; inset:0; }
-    .topright-controls {
+    body {
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
+
+    #map {
       position: absolute;
-      right: 10px;
-      top: 10px;
-      z-index: 1100;
-      display:flex;
-      flex-direction:column;
-      gap:6px;
+      width: 100%;
+      top: 0;
+      bottom: 0;
     }
-    .toggle-btn {
-      background: white;
-      border-radius: 4px;
-      padding:6px 8px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-      cursor:pointer;
-      font-family: sans-serif;
+
+    .leaflet-control-geocoder {
+      margin-top: 10px !important;
+      margin-right: 10px !important;
     }
-    .leaflet-control-geocoder { right: 10px !important; top: 60px !important; left: auto !important; }
-    .mapboxgl-map { height:100%; width:100%; } /* for mapbox container if used */
   </style>
 </head>
-<body>
 
+<body>
   <div id="map"></div>
 
-  <!-- top-right custom controls (search + toggle) -->
-  <div class="topright-controls">
-    <div id="searchbox"></div>
-    <button id="toggle3d" class="toggle-btn">تفعيل العرض ثلاثي الأبعاد</button>
-  </div>
-
-  <!-- Scripts -->
-  <!-- Mapbox GL (for 3D) -->
-  <script src="https://api.mapbox.com/mapbox-gl-js/v2.17.0/mapbox-gl.js"></script>
-  <link href="https://api.mapbox.com/mapbox-gl-js/v2.17.0/mapbox-gl.css" rel="stylesheet" />
-
-  <!-- mapbox-gl-leaflet bridge -->
-  <script src="https://unpkg.com/mapbox-gl-leaflet/leaflet-mapbox-gl.js"></script>
-
-  <!-- Leaflet, MarkerCluster, jQuery, Geocoder -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <!-- JS Libraries -->
+  <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+  <script src="https://unpkg.com/leaflet-gesture-handling"></script>
+
+  <!-- Optional 3D-like view (Perspective plugin) -->
+  <script src="https://unpkg.com/leaflet-tiltview"></script>
 
   <script>
-  (function(){
-
-    // ====== IMPORTANT: ضع توكن Mapbox هنا ======
-    const MAPBOX_TOKEN = "YOUR_MAPBOX_ACCESS_TOKEN"; // <-- استبدل هذا بالقيمة عندك
-
-    // Map initial options (Leaflet)
-    const map = L.map('map', {
+    // إعداد الخريطة
+    const mapOptions = {
       zoomSnap: 0.5,
       center: [31.9045, 35.2045],
       zoom: 17.5,
-      preferCanvas: true
-    });
+    };
+    const map = L.map("map", mapOptions);
 
-    // Leaflet base tile (Carto dark)
-    const leafletBase = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    // إضافة خريطة الأساس
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       attribution:
-        '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors &copy; CARTO',
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: 'abcd',
       maxZoom: 20
     }).addTo(map);
 
-    // Scale (meters only)
-    L.control.scale({ metric: true, imperial: false }).addTo(map);
+    // إضافة مقياس الرسم (بالمتر)
+    L.control.scale({ imperial: false, metric: true }).addTo(map);
 
-    // Geocoder (search) - placed in top-right (we added a container)
-    const geocoderControl = L.Control.geocoder({
-      collapsed: false,
-      placeholder: "ابحث باسم المنطقة...",
-      defaultMarkGeocode: false
-    }).addTo(map);
+    // متغيرات لتخزين الطبقات
+    let zonesLayer;
+    let wasteContainersLayer;
 
-    // move geocoder element into our searchbox container (so it appears under the toggle)
-    const geocoderEl = document.querySelector('.leaflet-control-geocoder');
-    const searchbox = document.getElementById('searchbox');
-    if (geocoderEl && searchbox) {
-      searchbox.appendChild(geocoderEl);
-      geocoderEl.style.position = 'static';
-      geocoderEl.style.boxShadow = '0 1px 4px rgba(0,0,0,0.25)';
-    }
+    // تحميل طبقة الحاويات
+    $.getJSON("wasteContainer.json", function (WC) {
+      const markers = L.markerClusterGroup();
 
-    // Layers placeholders
-    let zonesLayer = L.layerGroup();
-    let markersCluster = L.markerClusterGroup();
-    let wasteContainersLayer = L.layerGroup();
+      wasteContainersLayer = L.geoJson(WC, {
+        pointToLayer: function (feature, latlng) {
+          return L.circleMarker(latlng, {
+            radius: 6,
+            fillColor: "orange",
+            color: "orange",
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+          });
+        },
+        onEachFeature: function (feature, layer) {
+          let zoneName = feature.properties.Zone || "غير معروف";
+          let type = feature.properties.Type || "غير محدد";
+          layer.bindPopup(`<b>المنطقة:</b> ${zoneName}<br><b>نوع الحاوية:</b> ${type}`);
+        }
+      });
 
-    // Load zones (GeoJSON file)
-    $.getJSON("RamallahZones.json").done(function(RZ) {
+      markers.addLayer(wasteContainersLayer);
+      map.addLayer(markers);
+      wasteContainersLayer = markers;
+    });
+
+    // تحميل طبقة المناطق
+    $.getJSON("RamallahZones.json", function (RZ) {
       zonesLayer = L.geoJson(RZ, {
-        style: function(feature) {
+        style: function (feature) {
           return {
             fillColor: "yellow",
-            fillOpacity: 0.2,
+            fillOpacity: 0.3,
             color: "yellow",
-            weight: 1,
-            opacity: 0.8
+            weight: 1.0,
+            opacity: 0.7
           };
         },
-        onEachFeature: function(feature, layer) {
-          const name = feature.properties && (feature.properties.NAME_ENGLI || feature.properties.NAME || 'غير محدد');
-          const mail = feature.properties && (feature.properties.MAIL_CODE || 'غير محدد');
-          layer.on('click', function() {
-            alert("Zone: " + name + "\nMAIL_CODE: " + mail);
+        onEachFeature: function (feature, layer) {
+          layer.on('click', function (e) {
+            alert("Zone: " + feature.properties.NAME_ENGLI + "\nMAIL_CODE: " + feature.properties.MAIL_CODE);
           });
         }
       }).addTo(map);
-    }).fail(function(){ console.warn("لم يتم تحميل RamallahZones.json"); });
 
-    // Load waste containers, create markers and cluster them
-    $.getJSON("wasteContainer.json").done(function(WC) {
-      // Assume GeoJSON Point features
-      wasteContainersLayer = L.geoJson(WC, {
-        pointToLayer: function(feature, latlng) {
-          // create marker (simple)
-          const props = feature.properties || {};
-          const marker = L.marker(latlng, { riseOnHover: true });
-          // popup content
-          const popupHtml =
-            "<b>المنطقة:</b> " + (props.zone_name || props.NAME || "غير محدد") + "<br>" +
-            "<b>نوع الحاوية:</b> " + (props.container_type || "غير محدد") + "<br>" +
-            "<b>الرمز البريدي:</b> " + (props.zip_code || props.MAIL_CODE || "غير محدد") +
-            (props.image_url ? ("<br><img src='" + props.image_url + "' alt='container' style='max-width:150px;margin-top:6px;' />") : "");
-          marker.bindPopup(popupHtml);
-          return marker;
-        }
-      });
-      // Add geoJson markers into cluster group
-      markersCluster.clearLayers();
-      markersCluster.addLayer(wasteContainersLayer);
-      map.addLayer(markersCluster);
-    }).fail(function(){ console.warn("لم يتم تحميل wasteContainer.json"); });
+      // إضافة البحث حسب اسم المنطقة
+      L.Control.geocoder({
+        defaultMarkGeocode: false,
+        placeholder: "ابحث عن منطقة...",
+      })
+        .on('markgeocode', function (e) {
+          const bbox = e.geocode.bbox;
+          const poly = L.polygon([
+            bbox.getSouthEast(),
+            bbox.getNorthEast(),
+            bbox.getNorthWest(),
+            bbox.getSouthWest()
+          ]);
+          map.fitBounds(poly.getBounds());
+        })
+        .addTo(map);
+    });
 
-    // Layer control (make sure to reference actual layer objects)
+    // إعداد التحكم في الطبقات
+    const baseLayers = {};
     const overlays = {
       "Zones": zonesLayer,
-      "Waste Containers": markersCluster
+      "Waste Containers": wasteContainersLayer
     };
-    L.control.layers({}, overlays).addTo(map);
+    L.control.layers(baseLayers, overlays).addTo(map);
 
-    // ----- Mapbox GL (3D) integration via mapbox-gl-leaflet -----
-    let glLayer = null;
-    let is3D = false;
-
-    function enable3D() {
-      if (!MAPBOX_TOKEN || MAPBOX_TOKEN === "YOUR_MAPBOX_ACCESS_TOKEN") {
-        alert("لتفعيل العرض ثلاثي الأبعاد تحتاج Mapbox Access Token. ضع التوكن في المتغير MAPBOX_TOKEN داخل الكود.");
-        return;
-      }
-      if (glLayer) { // already created
-        map.addLayer(glLayer);
-        is3D = true;
-        updateToggleLabel();
-        return;
-      }
-
-      // create a Mapbox GL map (as a layer)
-      // Using mapbox-gl-leaflet: L.mapboxGL({ accessToken, style }) wrapper
-      glLayer = L.mapboxGL({
-        accessToken: MAPBOX_TOKEN,
-        style: "mapbox://styles/mapbox/streets-v12", // يمكن تغييره
-        // set interactive false so Leaflet captures events
-        interactive: true
-      }).addTo(map);
-
-      // set Mapbox camera to a tilted 3D pitch & bearing using the internal map instance after it's ready
-      glLayer.on('style.load', function() {
-        try {
-          const mb = glLayer.getMapboxMap(); // underlying mapbox map
-          // animate pitch & bearing for a pleasant 3D view
-          mb.easeTo({ pitch: 60, bearing: -20, duration: 1000 });
-          // enable 3D buildings layer if exists in style (some styles include vector building layers)
-          // Add a simple extrusion for buildings if the source 'composite' is available
-          if (!mb.getLayer('3d-buildings') && mb.style && mb.style.sourceCaches) {
-            // Try to add Mapbox's 3d-buildings layer (best-effort)
-            try {
-              mb.addLayer({
-                'id': '3d-buildings',
-                'source': 'composite',
-                'source-layer': 'building',
-                'filter': ['==', 'extrude', 'true'],
-                'type': 'fill-extrusion',
-                'minzoom': 15,
-                'paint': {
-                  'fill-extrusion-color': '#aaa',
-                  'fill-extrusion-height': ['get', 'height'],
-                  'fill-extrusion-base': ['get', 'min_height'],
-                  'fill-extrusion-opacity': 0.6
-                }
-              }, 'waterway-label'); // insert before label layer if present
-            } catch(e){}
-          }
-        } catch(e){
-          console.warn("فشل الوصول إلى Mapbox map instance:", e);
-        }
-      });
-
-      // Bring markers/clusters above GL layer (so popups still work)
-      markersCluster.bringToFront();
-
-      is3D = true;
-      updateToggleLabel();
+    // إضافة وضع التجوال الثلاثي الأبعاد
+    if (L.TiltView) {
+      const tiltView = L.TiltView({ maxPitch: 60 }).addTo(map);
     }
-
-    function disable3D() {
-      if (glLayer) {
-        try { map.removeLayer(glLayer); } catch(e){}
-      }
-      is3D = false;
-      updateToggleLabel();
-    }
-
-    function updateToggleLabel() {
-      const btn = document.getElementById('toggle3d');
-      if (!btn) return;
-      btn.textContent = is3D ? "إلغاء العرض ثلاثي الأبعاد" : "تفعيل العرض ثلاثي الأبعاد";
-    }
-
-    // wire toggle button
-    document.getElementById('toggle3d').addEventListener('click', function(){
-      if (!is3D) enable3D(); else disable3D();
-    });
-
-    // Ensure control order (bring geocoder & controls front)
-    map.on('layeradd', function(){
-      const el = document.querySelector('.leaflet-control-geocoder');
-      if (el) el.style.zIndex = 2000;
-    });
-
-    // Ensure clusters respond when switching to 3D: keep them on top
-    map.on('moveend', function(){ markersCluster.bringToFront(); });
-
-    // If you want the Mapbox GL view to appear centered/zoom as Leaflet, we already rely on the mapbox-gl-leaflet bridge.
-    // ===== End main logic =====
-
-  })();
   </script>
 </body>
 </html>
