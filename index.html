@@ -123,38 +123,19 @@
 
       map.addLayer(markers);
 
-     // === ADDITION ===: البحث عن المنطقة بالاسم
-$.getJSON("RamallahZones.json", function (RZ) {
-  const zonesLayer = L.geoJson(RZ, {
-    style: function (feature) {
-      return {
-        fillColor: "yellow",
-        fillOpacity: 0.3,
-        color: "yellow",
-        weight: 1.0,
-        opacity: 0.7
-      };
-    },
-    onEachFeature: function (feature, layer) {
-      layer.bindPopup(`<b>${feature.properties.NAME_ENGLI}</b>`);
-    }
-  }).addTo(map);
-
-  // البحث داخل بيانات المناطق فقط
-  const searchControl = new L.Control.Search({
-    layer: zonesLayer,
-    propertyName: 'NAME_ENGLI', // حقل الاسم داخل ملف RamallahZones.json
-    zoom: 17,
-    marker: false,
-    textPlaceholder: 'ابحث عن منطقة...',
-    moveToLocation: function (latlng, title, map) {
-      map.fitBounds(latlng.layer.getBounds());
-      latlng.layer.openPopup();
-    }
-  });
-  map.addControl(searchControl);
-});
-
+    // === ADDITION ===: البحث عن المنطقة بالاسم
+      const searchControl = new L.Control.Search({
+        layer: wasteContainersLayer,
+        propertyName: 'zoneName',
+        zoom: 18,
+        marker: false,
+        moveToLocation: function (latlng, title, map) {
+          map.setView(latlng, 18);
+        }
+      });
+      map.addControl(searchControl);
+    });
+    
     // تحميل بيانات المناطق
     $.getJSON("RamallahZones.json", function (RZ) {
       const zonesLayer = L.geoJson(RZ, {
@@ -198,4 +179,5 @@ $.getJSON("RamallahZones.json", function (RZ) {
   </script>
 </body>
 </html>
+
 
