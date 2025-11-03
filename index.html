@@ -3,11 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <title>Ramallah Waste Containers</title>
-
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
   <style>
     body {
       margin: 0;
@@ -17,126 +15,169 @@
     #map {
       position: absolute;
       width: 100%;
-      height: 100%;
       top: 0;
       bottom: 0;
     }
-    .leaflet-control-scale-line {
-      font-size: 12px;
-      background: rgba(255, 255, 255, 0.8);
-      padding: 3px;
-    }
-    .north-arrow {
+    #searchBox {
       position: absolute;
       top: 10px;
       right: 10px;
-      background: rgba(255,255,255,0.8);
-      padding: 5px;
-      border-radius: 5px;
-      z-index: 9999;
+      z-index: 1000;
+      background: white;
+      padding: 8px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
     }
-    .north-arrow img {
-      width: 50px;
-      height: auto;
+    #findNearest {
+      position: absolute;
+      top: 60px;
+      left: 10px;
+      z-index: 1000;
+      background: white;
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(0,0,0,0.3);
     }
   </style>
 </head>
 
 <body>
   <div id="map"></div>
-  <div class="north-arrow">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/0/09/Compass_rose_simple.svg" alt="North Arrow">
-  </div>
+  <input type="text" id="searchBox" placeholder="🔍 ابحث عن المنطقة..." />
+  <button id="findNearest">📍 أقرب حاوية</button>
 
-  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/jquery@3.5.1/dist/jquery.min.js"></script>
-  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <script src="https://unpkg.com/leaflet.earth/dist/leaflet.earth.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 
   <script>
     // إعداد الخريطة
     const map = L.map("map", {
-      center: [31.9045, 35.2045],
-      zoom: 17,
       zoomSnap: 0.5,
+      center: [31.9045, 35.2045],
+      zoom: 16.5,
     });
 
-    // إضافة طبقة الأساس
+    // خريطة الأساس
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+      attribution: '&copy; OpenStreetMap & CARTO',
       subdomains: 'abcd',
       maxZoom: 20
     }).addTo(map);
 
-    // مقياس الرسم
-    L.control.scale({ position: 'bottomleft' }).addTo(map);
+    // إضافة مقياس الرسم
+    L.control.scale({ metric: true, imperial: false }).addTo(map);
 
-    // خانة البحث
-    const geocoder = L.Control.geocoder({
-      defaultMarkGeocode: false,
-      placeholder: "ابحث باسم المنطقة..."
-    })
-      .on('markgeocode', function(e) {
-        const bbox = e.geocode.bbox;
-        const poly = L.polygon([
-          bbox.getSouthEast(),
-          bbox.getNorthEast(),
-          bbox.getNorthWest(),
-          bbox.getSouthWest()
-        ]);
-        map.fitBounds(poly.getBounds());
-      })
-      .addTo(map);
+    // طبقات
+    let wasteCluster = L.markerClusterGroup();
+    let wasteContainers = [];
+    let zonesLayer;
+
+    // تحميل بيانات الحاويات
+    $.getJSON("wasteContainer.json", function(WC) {
+      const layer = L.geoJson(WC, {
+        pointToLayer: function(feature, latlng) {
+          // تحديد اللون حسب الامتلاء
+          let level = feature.properties.fillLevel || 0;
+          let color = level > 80 ? "red" : level > 50 ? "orange" : "green";
+
+          let marker = L.circleMarker(latlng, {
+            radius: 6,
+            fillColor: color,
+            color: color,
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.9
+          });
+
+          marker.bindPopup(`
+            <b>Container ID:</b> ${feature.properties.id || 'N/A'}<br>
+            <b>Fill Level:</b> ${level}%<br><br>
+            <input type="file" accept="image/*" onchange="uploadPhoto(event, '${feature.properties.id}')">
+            <p id="photo-${feature.properties.id}" style="margin-top:5px;"></p>
+          `);
+
+          wasteContainers.push(latlng);
+          return marker;
+        }
+      });
+      wasteCluster.addLayer(layer);
+      map.addLayer(wasteCluster);
+    });
 
     // تحميل بيانات المناطق
-    let zonesLayer;
     $.getJSON("RamallahZones.json", function(RZ) {
       zonesLayer = L.geoJson(RZ, {
         style: {
           fillColor: "yellow",
-          fillOpacity: 0.3,
+          fillOpacity: 0.2,
           color: "yellow",
           weight: 1.0,
           opacity: 0.7
         },
         onEachFeature: function(feature, layer) {
-          layer.bindPopup("<b>Zone:</b> " + feature.properties.NAME_ENGLI + "<br><b>Mail Code:</b> " + feature.properties.MAIL_CODE);
+          layer.bindPopup(`<b>${feature.properties.NAME_ENGLI}</b><br>MAIL_CODE: ${feature.properties.MAIL_CODE}`);
         }
       }).addTo(map);
+
+      // تفعيل البحث بالاسم
+      const searchBox = document.getElementById("searchBox");
+      searchBox.addEventListener("keyup", function(e) {
+        let text = e.target.value.toLowerCase();
+        zonesLayer.eachLayer(function(layer) {
+          let name = layer.feature.properties.NAME_ENGLI.toLowerCase();
+          if (name.includes(text) && text.length > 0) {
+            map.fitBounds(layer.getBounds());
+            layer.openPopup();
+          }
+        });
+      });
     });
 
-    // تحميل بيانات الحاويات مع clustering
-    let wasteContainersLayer;
-    const markers = L.markerClusterGroup();
-    $.getJSON("wasteContainer.json", function(WC) {
-      wasteContainersLayer = L.geoJson(WC, {
-        pointToLayer: function(feature, latlng) {
-          const marker = L.circleMarker(latlng, {
-            radius: 6,
-            fillColor: "orange",
-            color: "orange",
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8
-          });
-          const popupContent = `
-            <b>اسم المنطقة:</b> ${feature.properties.Area || "غير محدد"}<br>
-            <b>نوع الحاوية:</b> ${feature.properties.Type || "غير محدد"}
-          `;
-          marker.bindPopup(popupContent);
-          return marker;
+    // حساب المسافة لأقرب حاوية
+    document.getElementById("findNearest").addEventListener("click", () => {
+      map.locate({ setView: true, maxZoom: 18 });
+    });
+
+    map.on('locationfound', function(e) {
+      const userLocation = e.latlng;
+      let nearest = null;
+      let minDist = Infinity;
+
+      wasteContainers.forEach(point => {
+        const dist = userLocation.distanceTo(point);
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = point;
         }
       });
-      markers.addLayer(wasteContainersLayer);
-      map.addLayer(markers);
+
+      if (nearest) {
+        L.marker(userLocation).addTo(map).bindPopup("موقعك الحالي").openPopup();
+        L.polyline([userLocation, nearest], { color: "lime", dashArray: "5,5" }).addTo(map);
+        L.popup()
+          .setLatLng(nearest)
+          .setContent("أقرب حاوية تبعد " + (minDist).toFixed(1) + " متر")
+          .openOn(map);
+      }
     });
 
-    // وضع التجوال الثلاثي الأبعاد
-    const earthControl = L.control.earth({
-      position: 'topright',
-      title: "تجوال ثلاثي الأبعاد"
-    }).addTo(map);
+    map.on('locationerror', () => alert("تعذر تحديد موقعك 😕"));
+
+    // رفع صورة للحاوية
+    function uploadPhoto(event, containerId) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById(`photo-${containerId}`).innerHTML =
+            `<img src="${e.target.result}" width="100" style="border-radius:8px;">`;
+        };
+        reader.readAsDataURL(file);
+        alert("✅ تم تحميل الصورة بنجاح!");
+      }
+    }
   </script>
 </body>
 </html>
