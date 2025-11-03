@@ -5,7 +5,6 @@
   <meta charset="utf-8" />
   <title>Ramallah Waste Containers</title>
 
-  <!-- === مكتبات Leaflet === -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
@@ -25,7 +24,6 @@
       bottom: 0;
     }
 
-    /* زر البحث */
     .leaflet-control-search {
       position: absolute !important;
       right: 10px !important;
@@ -33,7 +31,6 @@
       z-index: 1000;
     }
 
-    /* رفع الصورة */
     #imageUpload {
       position: absolute;
       right: 10px;
@@ -51,94 +48,38 @@
   <div id="map"></div>
   <input type="file" id="imageUpload" accept="image/*" title="Upload container image">
 
-  <!-- === سكربتات Leaflet === -->
   <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-control-search/dist/leaflet-search.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 
   <script>
-    // =====================================================
-    // 1️⃣ إعداد الخريطة الأساسية
-    // =====================================================
     const map = L.map("map", {
       center: [31.9045, 35.2045],
       zoom: 17.5,
       zoomSnap: 0.5
     });
 
-    // خلفية الخريطة
+    // الخريطة الأساسية
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; OpenStreetMap & CARTO',
       subdomains: 'abcd',
       maxZoom: 20
     }).addTo(map);
 
-    // =====================================================
-    // 2️⃣ مقياس الرسم
-    // =====================================================
+    // مقياس الرسم
     L.control.scale({ metric: true, imperial: false }).addTo(map);
 
-    // =====================================================
-    // 3️⃣ تحديد موقع المستخدم
-    // =====================================================
-    map.locate({ setView: false })
-      .on("locationfound", function (e) {
-        L.circleMarker(e.latlng, {
-          radius: 7,
-          fillColor: "blue",
-          color: "white",
-          weight: 2,
-          fillOpacity: 0.9
-        }).addTo(map).bindPopup("موقعك الحالي");
-      });
+    // متغيرات عامة
+    const workerSpeed = 1.4; // م/ث
+    let lastContainer = null;
+    let currentLine = null;
 
-    // =====================================================
-    // 4️⃣ طبقة المناطق + البحث باسم المنطقة
-    // =====================================================
-    let zonesLayer;
-    $.getJSON("RamallahZones.json", function (RZ) {
-      zonesLayer = L.geoJson(RZ, {
-        style: function (feature) {
-          return {
-            fillColor: "yellow",
-            fillOpacity: 0.3,
-            color: "yellow",
-            weight: 1.0
-          };
-        },
-        onEachFeature: function (feature, layer) {
-          layer.bindPopup(`<b>${feature.properties.NAME_ENGLI}</b>`);
-        }
-      }).addTo(map);
-
-      // 🔍 البحث في طبقة المناطق فقط
-      const searchControl = new L.Control.Search({
-        layer: zonesLayer,
-        propertyName: "NAME_ENGLI",
-        marker: false,
-        textPlaceholder: "ابحث عن منطقة...",
-        moveToLocation: function (latlng, title, map) {
-          const layer = latlng.layer || this._getLocationLayer(title);
-          if (layer && layer.getBounds) {
-            map.fitBounds(layer.getBounds());
-            layer.openPopup();
-          } else {
-            map.setView(latlng, 17);
-          }
-        }
-      });
-      map.addControl(searchControl);
-    });
-
-    // =====================================================
-    // 5️⃣ طبقة الحاويات + تلوين + كلستر
-    // =====================================================
+    // --- تحميل الحاويات ---
     const markers = L.markerClusterGroup();
-    let wasteContainersLayer;
 
     $.getJSON("wasteContainer.json", function (WC) {
-      wasteContainersLayer = L.geoJson(WC, {
+      const wasteContainersLayer = L.geoJson(WC, {
         pointToLayer: function (feature, latlng) {
           const fillLevel = feature.properties.fillLevel || 0;
           let fill = fillLevel > 80 ? "red" : fillLevel > 50 ? "orange" : "green";
@@ -158,60 +99,94 @@
             <b>نسبة الامتلاء:</b> ${fillLevel}%<br>
           `);
 
-          // إضافة الحاوية إلى الكلستر
+          // عند النقر على الحاوية: حساب المسافة + رسم المسار
+          marker.on('click', function () {
+            if (lastContainer) {
+              const start = lastContainer.getLatLng();
+              const end = latlng;
+              const dist = map.distance(start, end);
+              const time = dist / workerSpeed;
+              const min = Math.floor(time / 60);
+              const sec = Math.floor(time % 60);
+
+              // إزالة الخط السابق إن وجد
+              if (currentLine) map.removeLayer(currentLine);
+
+              // رسم الخط الجديد
+              currentLine = L.polyline([start, end], {
+                color: "lime",
+                weight: 3,
+                dashArray: "5,5"
+              }).addTo(map);
+
+              alert(`المسافة: ${dist.toFixed(2)} متر\nالزمن: ${min} دقيقة و ${sec} ثانية`);
+            }
+            lastContainer = marker;
+          });
+
           markers.addLayer(marker);
-          return marker;
         }
       });
+
       map.addLayer(markers);
     });
 
-    // =====================================================
-    // 6️⃣ حساب المسافة والزمن + رسم الخط بين الحاويتين
-    // =====================================================
-    const workerSpeed = 1.4; // م/ث
-    let lastContainer = null;
-    let currentLine = null;
+    // --- تحميل المناطق + البحث ---
+    let zonesLayer;
+    $.getJSON("RamallahZones.json", function (RZ) {
+      zonesLayer = L.geoJson(RZ, {
+        style: function (feature) {
+          return {
+            fillColor: "yellow",
+            fillOpacity: 0.3,
+            color: "yellow",
+            weight: 1.0
+          };
+        },
+        onEachFeature: function (feature, layer) {
+          layer.bindPopup(`<b>${feature.properties.NAME_ENGLI}</b>`);
+        }
+      }).addTo(map);
 
-    markers.on('click', function (event) {
-      const marker = event.layer;
-      const latlng = marker.getLatLng();
-
-      if (lastContainer) {
-        const start = lastContainer.getLatLng();
-        const end = latlng;
-        const dist = map.distance(start, end);
-        const time = dist / workerSpeed;
-        const min = Math.floor(time / 60);
-        const sec = Math.floor(time % 60);
-
-        // إزالة الخط السابق
-        if (currentLine) map.removeLayer(currentLine);
-
-        // رسم الخط الجديد
-        currentLine = L.polyline([start, end], {
-          color: "lime",
-          weight: 3,
-          dashArray: "5,5"
-        }).addTo(map);
-
-        alert(`المسافة: ${dist.toFixed(2)} متر\nالزمن: ${min} دقيقة و ${sec} ثانية`);
-      }
-
-      lastContainer = marker;
+      // البحث داخل طبقة المناطق فقط
+      const searchControl = new L.Control.Search({
+        layer: zonesLayer,
+        propertyName: "NAME_ENGLI",
+        marker: false,
+        textPlaceholder: "ابحث عن منطقة...",
+        moveToLocation: function (latlng, title, map) {
+          // تكبير على حدود المنطقة وفتح الـ popup
+          const layer = latlng.layer || this._getLocationLayer(title);
+          if (layer && layer.getBounds) {
+            map.fitBounds(layer.getBounds());
+            layer.openPopup();
+          } else {
+            map.setView(latlng, 17);
+          }
+        }
+      });
+      map.addControl(searchControl);
     });
 
-    // =====================================================
-    // 7️⃣ رفع الصورة من الميدان
-    // =====================================================
+    // --- تحديد موقع المستخدم ---
+    map.locate({ setView: false })
+      .on("locationfound", function (e) {
+        L.circleMarker(e.latlng, {
+          radius: 7,
+          fillColor: "blue",
+          color: "white",
+          weight: 2,
+          fillOpacity: 0.9
+        }).addTo(map).bindPopup("موقعك الحالي");
+      });
+
+    // --- تحميل صورة من الميدان ---
     document.getElementById("imageUpload").addEventListener("change", function (event) {
       const file = event.target.files[0];
       if (file) {
-        alert(`تم اختيار الصورة: ${file.name}\n(لن يتم رفعها الآن - فقط عرضها محليًا)`);
+        alert(`تم اختيار الصورة: ${file.name}\n(لن يتم رفعها حاليًا - فقط عرضها محليًا)`);
       }
     });
-
   </script>
 </body>
-
 </html>
