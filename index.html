@@ -1,192 +1,158 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="ar">
 <head>
-  <meta charset="utf-8" />
-  <title>Ramallah Waste Containers</title>
+  <meta charset="UTF-8" />
+  <title>دليل الحواجز في الضفة الغربية</title>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-search/dist/leaflet-search.min.css" />
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <!-- MarkerCluster -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css">
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+
+  <!-- Routing -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+  <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 
   <style>
     body {
       margin: 0;
-      height: 100%;
-      width: 100%;
+      font-family: "Segoe UI", Tahoma;
     }
 
     #map {
-      position: absolute;
-      width: 100%;
-      top: 0;
-      bottom: 0;
+      height: 100vh;
     }
 
-    .leaflet-control-search {
-      position: absolute !important;
-      right: 10px !important;
-      top: 10px !important;
-      z-index: 1000;
-    }
-
-    #imageUpload {
+    .welcome {
       position: absolute;
-      right: 10px;
-      bottom: 10px;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
       background: white;
-      padding: 6px;
-      border-radius: 5px;
-      box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+      padding: 10px 20px;
       z-index: 1000;
+      border-radius: 8px;
+      font-weight: bold;
+    }
+
+    .search-box, .status-box, .feedback-box {
+      position: absolute;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      z-index: 1000;
+    }
+
+    .search-box {
+      top: 80px;
+      left: 10px;
+    }
+
+    .status-box {
+      top: 160px;
+      left: 10px;
+    }
+
+    .feedback-box {
+      bottom: 20px;
+      left: 10px;
+      width: 250px;
     }
   </style>
 </head>
 
 <body>
-  <div id="map"></div>
-  <input type="file" id="imageUpload" accept="image/*" title="Upload container image">
 
-  <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <script src="https://unpkg.com/leaflet-control-search/dist/leaflet-search.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<div class="welcome">لطريق آمن افتح التطبيق</div>
 
-  <script>
-    const map = L.map("map", {
-      center: [31.9045, 35.2045],
-      zoom: 17.5,
-      zoomSnap: 0.5
+<div class="search-box">
+  <input type="text" id="search" placeholder="ابحث عن حاجز" />
+</div>
+
+<div class="status-box">
+  <b>حالة الحواجز</b><br>
+  <button onclick="filterStatus('open')">مفتوح</button>
+  <button onclick="filterStatus('closed')">مغلق</button>
+  <button onclick="filterStatus('traffic')">ازدحام</button>
+</div>
+
+<div class="feedback-box">
+  <b>ملاحظات المستخدم</b><br>
+  <textarea rows="4" style="width:100%" placeholder="اكتب رأيك هنا"></textarea>
+  <button style="margin-top:5px;width:100%">إرسال</button>
+</div>
+
+<div id="map"></div>
+
+<script>
+  // الخريطة
+  var map = L.map('map').setView([31.9, 35.2], 9);
+
+  // BaseMap
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  // Scale
+  L.control.scale().addTo(map);
+
+  // Cluster
+  var cluster = L.markerClusterGroup();
+
+  function checkpointIcon(color) {
+    return L.icon({
+      iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-${color}.png`,
+      iconSize: [25, 41],
+      iconAnchor: [12, 41]
     });
+  }
 
-    // الخريطة الأساسية
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap & CARTO',
-      subdomains: 'abcd',
-      maxZoom: 20
-    }).addTo(map);
+  var checkpointsLayer;
 
-    // مقياس الرسم
-    L.control.scale({ metric: true, imperial: false }).addTo(map);
-
-    // متغيرات عامة
-    const workerSpeed = 1.4; // م/ث
-    let lastContainer = null;
-    let currentLine = null;
-
-    // --- تحميل الحاويات ---
-    const markers = L.markerClusterGroup();
-
-    $.getJSON("wasteContainer.json", function (WC) {
-      const wasteContainersLayer = L.geoJson(WC, {
+  fetch("data/checkpoints.geojson")
+    .then(res => res.json())
+    .then(data => {
+      checkpointsLayer = L.geoJSON(data, {
         pointToLayer: function (feature, latlng) {
-          const fillLevel = feature.properties.fillLevel || 0;
-          let fill = fillLevel > 80 ? "red" : fillLevel > 50 ? "orange" : "green";
+          let status = feature.properties.status;
+          let color = status === "open" ? "green" :
+                      status === "closed" ? "red" : "orange";
 
-          const marker = L.circleMarker(latlng, {
-            radius: 6,
-            fillColor: fill,
-            color: fill,
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.9
-          });
-
-          marker.bindPopup(`
-            <b>المنطقة:</b> ${feature.properties.zoneName || "غير محددة"}<br>
-            <b>النوع:</b> ${feature.properties.type || "غير معروف"}<br>
-            <b>نسبة الامتلاء:</b> ${fillLevel}%<br>
-          `);
-
-          // عند النقر على الحاوية: حساب المسافة + رسم المسار
-          marker.on('click', function () {
-            if (lastContainer) {
-              const start = lastContainer.getLatLng();
-              const end = latlng;
-              const dist = map.distance(start, end);
-              const time = dist / workerSpeed;
-              const min = Math.floor(time / 60);
-              const sec = Math.floor(time % 60);
-
-              // إزالة الخط السابق إن وجد
-              if (currentLine) map.removeLayer(currentLine);
-
-              // رسم الخط الجديد
-              currentLine = L.polyline([start, end], {
-                color: "lime",
-                weight: 3,
-                dashArray: "5,5"
-              }).addTo(map);
-
-              alert(`المسافة: ${dist.toFixed(2)} متر\nالزمن: ${min} دقيقة و ${sec} ثانية`);
-            }
-            lastContainer = marker;
-          });
-
-          markers.addLayer(marker);
+          return L.marker(latlng, { icon: checkpointIcon(color) })
+            .bindPopup(`<b>${feature.properties.name}</b><br>الحالة: ${status}`);
         }
       });
 
-      map.addLayer(markers);
+      cluster.addLayer(checkpointsLayer);
+      map.addLayer(cluster);
     });
 
-    // --- تحميل المناطق + البحث ---
-    let zonesLayer;
-    $.getJSON("RamallahZones.json", function (RZ) {
-      zonesLayer = L.geoJson(RZ, {
-        style: function (feature) {
-          return {
-            fillColor: "yellow",
-            fillOpacity: 0.3,
-            color: "yellow",
-            weight: 1.0
-          };
-        },
-        onEachFeature: function (feature, layer) {
-          layer.bindPopup(`<b>${feature.properties.NAME_ENGLI}</b>`);
-        }
-      }).addTo(map);
-
-      // البحث داخل طبقة المناطق فقط
-      const searchControl = new L.Control.Search({
-        layer: zonesLayer,
-        propertyName: "NAME_ENGLI",
-        marker: false,
-        textPlaceholder: "ابحث عن منطقة...",
-        moveToLocation: function (latlng, title, map) {
-          // تكبير على حدود المنطقة وفتح الـ popup
-          const layer = latlng.layer || this._getLocationLayer(title);
-          if (layer && layer.getBounds) {
-            map.fitBounds(layer.getBounds());
-            layer.openPopup();
-          } else {
-            map.setView(latlng, 17);
-          }
-        }
-      });
-      map.addControl(searchControl);
-    });
-
-    // --- تحديد موقع المستخدم ---
-    map.locate({ setView: false })
-      .on("locationfound", function (e) {
-        L.circleMarker(e.latlng, {
-          radius: 7,
-          fillColor: "blue",
-          color: "white",
-          weight: 2,
-          fillOpacity: 0.9
-        }).addTo(map).bindPopup("موقعك الحالي");
-      });
-
-    // --- تحميل صورة من الميدان ---
-    document.getElementById("imageUpload").addEventListener("change", function (event) {
-      const file = event.target.files[0];
-      if (file) {
-        alert(`تم اختيار الصورة: ${file.name}\n(لن يتم رفعها حاليًا - فقط عرضها محليًا)`);
+  function filterStatus(status) {
+    cluster.clearLayers();
+    checkpointsLayer.eachLayer(layer => {
+      if (layer.feature.properties.status === status) {
+        cluster.addLayer(layer);
       }
     });
-  </script>
+  }
+
+  // تحديد الموقع والمسار
+  var control = L.Routing.control({
+    waypoints: [],
+    routeWhileDragging: true,
+    show: false
+  }).addTo(map);
+
+  map.on('click', function (e) {
+    if (control.getWaypoints().length < 2) {
+      control.spliceWaypoints(control.getWaypoints().length, 1, e.latlng);
+    }
+  });
+
+</script>
+
 </body>
 </html>
